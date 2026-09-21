@@ -75,11 +75,11 @@ export default function ConfirmScreen() {
     setError(null);
     tickHaptic();
 
-    // Made before the first request and reused by every retry of this voucher, so a slow
-    // network, a double tap or a retry can never pay twice.
-    const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
-
     try {
+      // Made before the first request and reused by every retry of this voucher, so a slow
+      // network, a double tap or a retry can never pay twice.
+      const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
+
       const created = await api.createDeposit(
         session.lookup.voucherToken,
         {

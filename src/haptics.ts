@@ -7,7 +7,11 @@ import { Platform } from 'react-native';
  * Feedback is a nicety: any failure is swallowed.
  */
 function run(action: () => Promise<void>): void {
-  action().catch(() => {});
+  try {
+    action().catch(() => {});
+  } catch {
+    // A synchronous failure (module missing on an odd device) is ignored the same way.
+  }
 }
 
 /** A light tick for a tap that commits something (Save, Send). */

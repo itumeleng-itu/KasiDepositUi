@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { spokenAmounts } from '../domain/money';
 import { colors, size, spacing, type } from '../theme';
 import { Icon } from './Icon';
 
@@ -8,7 +9,9 @@ export function InlineError({ message }: { message: string }) {
   return (
     <View style={styles.row} accessibilityLiveRegion="polite">
       <Icon name="alert" color={colors.error} size={size.iconSmall} />
-      <Text style={styles.text}>{message}</Text>
+      <Text style={styles.text} accessibilityLabel={spokenAmounts(message)}>
+        {message}
+      </Text>
     </View>
   );
 }

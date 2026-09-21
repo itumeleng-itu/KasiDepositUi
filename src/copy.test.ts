@@ -60,6 +60,17 @@ describe('statusCopy: screen readers and unknown destinations', () => {
     expect(text.spokenSupport).not.toContain('•');
   });
 
+  it('speaks amounts that appear inside a failure reason', () => {
+    const text = statusCopy('failed', {
+      payoutCents: 0,
+      destination,
+      failureReason: 'voucher_too_small',
+    });
+    expect(text.support).toContain('R10.00');
+    expect(text.spokenSupport).toContain('10 rand');
+    expect(text.spokenSupport).not.toContain('R10.00');
+  });
+
   it('copes without a destination', () => {
     expect(statusCopy('submitted', { payoutCents: 1, destination: null }).support).toBe(
       'Sent to your bank. This usually takes under a minute.',

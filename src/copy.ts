@@ -4,7 +4,7 @@
  * what to do. Bank names are proper nouns and live in domain/banks.ts.
  */
 import { MIN_VOUCHER_CENTS } from './domain/fees';
-import { formatRand, spokenRand, type Cents } from './domain/money';
+import { formatRand, spokenAmounts, spokenRand, type Cents } from './domain/money';
 import type { AccountError } from './domain/account';
 import type { NameError } from './domain/name';
 import type { DepositStatus, FailureReason } from './api/types';
@@ -129,8 +129,9 @@ export function statusCopy(state: StatusScreenState, input: StatusCopyInput): St
   const plain = (headline: string, support: string): StatusText => ({
     headline,
     support,
-    spokenHeadline: headline,
-    spokenSupport: support,
+    spokenHeadline: spokenAmounts(headline),
+    // A failure reason can carry an amount ("The minimum is R10.00").
+    spokenSupport: spokenAmounts(support),
   });
   const { destination } = input;
 

@@ -23,6 +23,17 @@ export function formatRand(cents: Cents): string {
   return `${sign}R${rands}.${centsPart}`;
 }
 
+/**
+ * Rewrites every formatted amount inside a sentence for screen readers, e.g.
+ * "The minimum is R10.00." -> "The minimum is 10 rand." Text with no amounts is unchanged.
+ */
+export function spokenAmounts(text: string): string {
+  return text.replace(/R(\d{1,3}(?: \d{3})+|\d+)\.(\d{2})\b/g, (match, rands: string, cents: string) => {
+    const total = Number(rands.replace(/ /g, '')) * 100 + Number(cents);
+    return Number.isSafeInteger(total) ? spokenRand(total) : match;
+  });
+}
+
 /** For screen readers, which read "R495.00" badly. "495 rand", "495 rand 50 cents". */
 export function spokenRand(cents: Cents): string {
   assertCents(cents);

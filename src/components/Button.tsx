@@ -67,6 +67,7 @@ function labelColor(variant: Variant, disabled: boolean): string {
 const styles = StyleSheet.create({
   base: {
     minHeight: size.touch,
+    minWidth: size.touch,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
