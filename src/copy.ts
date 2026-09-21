@@ -98,6 +98,7 @@ export const confirm = {
 export const status = {
   makeAnother: 'Make another deposit',
   tryAgain: common.tryAgain,
+  tryAgainLater: 'Try again later',
   changeAccount: 'Change account details',
   reference: (ref: string) => `Reference: ${ref}`,
   steps: { checked: 'Checked', sent: 'Sent', arrived: 'Arrived' },
@@ -111,39 +112,60 @@ export type StatusScreenState = DepositStatus | 'still_processing';
 
 interface StatusCopyInput {
   payoutCents: Cents;
-  bankName: string;
-  maskedAccount: string;
+  /** Where the money went, if we know. A cold-opened screen may have to do without. */
+  destination: { bankName: string; maskedAccount: string } | null;
   failureReason?: FailureReason;
 }
 
-export function statusCopy(
-  state: StatusScreenState,
-  input: StatusCopyInput,
-): { headline: string; support: string } {
+export interface StatusText {
+  headline: string;
+  support: string;
+  /** What a screen reader says: amounts as "495 rand", accounts as "ending 4417". */
+  spokenHeadline: string;
+  spokenSupport: string;
+}
+
+export function statusCopy(state: StatusScreenState, input: StatusCopyInput): StatusText {
+  const plain = (headline: string, support: string): StatusText => ({
+    headline,
+    support,
+    spokenHeadline: headline,
+    spokenSupport: support,
+  });
+  const { destination } = input;
+
   switch (state) {
     case 'pending':
-      return { headline: 'Sending your money', support: 'Checking your voucher.' };
+      return plain('Sending your money', 'Checking your voucher.');
     case 'submitted':
-      return {
-        headline: 'On its way',
-        support: `Sent to ${input.bankName}. This usually takes under a minute.`,
-      };
-    case 'completed':
+      return plain(
+        'On its way',
+        `Sent to ${destination ? destination.bankName : 'your bank'}. This usually takes under a minute.`,
+      );
+    case 'completed': {
+      const support = destination
+        ? `Paid into ${destination.maskedAccount} at ${destination.bankName}.`
+        : 'Paid into your account.';
       return {
         headline: `${formatRand(input.payoutCents)} is in your account`,
-        support: `Paid into ${input.maskedAccount} at ${input.bankName}.`,
+        support,
+        spokenHeadline: `${spokenRand(input.payoutCents)} is in your account`,
+        spokenSupport: destination
+          ? `Paid into account ending ${destination.maskedAccount.slice(-4)} at ${destination.bankName}.`
+          : support,
       };
+    }
     case 'failed':
-      return {
-        headline: "We couldn't send this deposit",
+      return plain(
+        "We couldn't send this deposit",
         // Reason messages already end with a full stop.
-        support: `${failure[input.failureReason ?? 'unknown'].message} ${SAFE_MONEY}`,
-      };
+        `${failure[input.failureReason ?? 'unknown'].message} ${SAFE_MONEY}`,
+      );
     case 'still_processing':
-      return {
-        headline: 'Still processing',
-        support: "This is taking longer than usual. Your money is safe. We'll keep checking.",
-      };
+      return plain(
+        'Still processing',
+        "This is taking longer than usual. Your money is safe. We'll keep checking.",
+      );
   }
 }
 
