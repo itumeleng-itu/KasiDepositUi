@@ -33,7 +33,8 @@ export const setup = {
   save: 'Save details',
   cancel: common.cancel,
   privacyNote: 'Saved on this phone only. We never ask for your banking PIN or password.',
-  bankSelected: 'selected',
+  saveFailed: "We couldn't save your details on this phone. Try again.",
+  saving: 'Saving',
   nameError: {
     required: 'Enter the name on the bank account.',
     too_short: 'The name must be at least 2 letters.',

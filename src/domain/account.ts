@@ -1,11 +1,19 @@
+import { extractDigits } from './digits';
+import type { DigitGrouping } from './groupedDigits';
+
 export const ACCOUNT_MIN = 7;
 export const ACCOUNT_MAX = 11;
+/**
+ * How many digits the field accepts. More than ACCOUNT_MAX so a too-long paste shows the
+ * "at most 11 digits" error instead of being silently cut.
+ */
+export const ACCOUNT_INPUT_MAX = 20;
 
 export type AccountError = 'required' | 'too_short' | 'too_long';
 
 /** Strip every non-digit, so spaces, dashes and pasted text all work. */
 export function normaliseAccountNumber(raw: string): string {
-  return raw.replace(/\D/g, '');
+  return extractDigits(raw);
 }
 
 export function validateAccountNumber(raw: string): AccountError | null {
@@ -16,13 +24,29 @@ export function validateAccountNumber(raw: string): AccountError | null {
   return null;
 }
 
+const FIRST_GROUP = 4;
+const NEXT_GROUP = 3;
+
 /** Display grouping only: first four digits, then groups of three. 1234567890 -> 1234 567 890 */
 export function formatAccountNumber(digits: string): string {
   const groups: string[] = [];
-  if (digits.length > 0) groups.push(digits.slice(0, 4));
-  for (let i = 4; i < digits.length; i += 3) groups.push(digits.slice(i, i + 3));
+  if (digits.length > 0) groups.push(digits.slice(0, FIRST_GROUP));
+  for (let i = FIRST_GROUP; i < digits.length; i += NEXT_GROUP) {
+    groups.push(digits.slice(i, i + NEXT_GROUP));
+  }
   return groups.join(' ');
 }
+
+function caretForDigitIndex(digitIndex: number): number {
+  if (digitIndex <= FIRST_GROUP) return digitIndex;
+  return digitIndex + Math.ceil((digitIndex - FIRST_GROUP) / NEXT_GROUP);
+}
+
+export const ACCOUNT_GROUPING: DigitGrouping = {
+  maxDigits: ACCOUNT_INPUT_MAX,
+  format: formatAccountNumber,
+  caretForDigitIndex,
+};
 
 export function lastFour(digits: string): string {
   return digits.slice(-4);

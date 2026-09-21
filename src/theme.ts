@@ -49,6 +49,7 @@ export const size = {
   button: 56,
   bankRow: 56,
   icon: 24,
+  iconSmall: 18,
   stepIcon: 32,
   /** Widest a content column grows to on large screens. */
   contentMax: 480,
