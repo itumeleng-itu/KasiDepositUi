@@ -1,28 +1,35 @@
 import type { TextStyle } from 'react-native';
 
 /**
- * Design tokens. Components use only these values — no inline magic numbers.
+ * Design tokens. Components use only these values: no inline magic numbers.
  *
- * Contrast (WCAG 2.x), measured against `paper` unless stated:
- *   ink        16.2:1   inkMuted    6.5:1   primary     8.3:1 (white on primary 8.8:1)
- *   success     6.6:1   error       6.2:1   line        3.25:1 (non-text needs 3:1)
- *   white on disabled 5.3:1   error on errorTint 5.6:1   success on successTint 6.1:1
+ * Black, white and grey only. Because there is no red or green, state is carried by shape,
+ * weight and words: an icon and a message for errors, a tick for done, a heavy border for
+ * selected. Nothing depends on colour to be understood.
+ *
+ * Contrast (WCAG 2.x). Every pair the app draws is checked in theme.test.ts:
+ *   ink on paper 21:1, on surface 19.3:1, on tint 17.6:1   muted ink on paper 6.7:1, on surface 6.1:1
+ *   white on primary 21:1   white-on-disabled n/a: disabled text 5.5:1 on its fill
+ *   field border (line) 4.5:1 on paper, 4.2:1 on surface (non-text needs 3:1)
  */
 export const colors = {
-  paper: '#FAF8F3',
-  surface: '#FFFFFF',
-  ink: '#1B1B1B',
-  inkMuted: '#5A5A5A',
-  primary: '#124A8C',
+  paper: '#FFFFFF',
+  /** Fields, bank rows and quiet panels. */
+  surface: '#F5F5F5',
+  ink: '#000000',
+  inkMuted: '#5C5C5C',
+  primary: '#000000',
   onPrimary: '#FFFFFF',
-  primaryTint: '#E6EEF7',
-  success: '#17663A',
-  successTint: '#E4F2E9',
-  error: '#B3261E',
-  errorTint: '#FBEAE8',
-  line: '#8A8A8A',
-  disabled: '#6B6B6B',
-  onDisabled: '#FFFFFF',
+  /** Selected row and pressed rows. */
+  primaryTint: '#EBEBEB',
+  /** Kept as tokens so a colour can be reintroduced in one place; today they are ink and grey. */
+  success: '#000000',
+  successTint: '#F5F5F5',
+  error: '#000000',
+  errorTint: '#F5F5F5',
+  line: '#767676',
+  disabled: '#E3E3E3',
+  onDisabled: '#595959',
 } as const;
 
 /** 4-point scale. */
@@ -36,9 +43,13 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
-/** One radius for inputs and buttons, a smaller one for chips. */
+/**
+ * Buttons are pills (half their height); inputs, rows and panels share one softer radius; chips
+ * are tighter still.
+ */
 export const radius = {
-  control: 12,
+  pill: 28,
+  control: 16,
   chip: 6,
 } as const;
 
@@ -72,17 +83,19 @@ export const motion = {
 const tabular: TextStyle['fontVariant'] = ['tabular-nums'];
 
 /**
- * Type scale (system font). Every style uses tabular figures so digits line up.
- * `pin` is not in the base scale: §2.3 requires the PIN to be at least 24.
+ * Type scale. Every style uses tabular figures so digits line up. Headings are heavier and set
+ * slightly tight (about -0.02em, in points) for a confident, quiet look; body text is left alone
+ * for legibility. `pin` is not in the base scale: the PIN must be at least 24 and is not
+ * tracked, so that 16 digits still fit a 320 dp screen.
  */
 export const type = {
   caption: { fontSize: 13, lineHeight: 18, fontVariant: tabular },
-  label: { fontSize: 15, lineHeight: 20, fontWeight: '600', fontVariant: tabular },
-  body: { fontSize: 16, lineHeight: 22, fontVariant: tabular },
-  title: { fontSize: 22, lineHeight: 28, fontWeight: '700', fontVariant: tabular },
-  headline: { fontSize: 28, lineHeight: 34, fontWeight: '700', fontVariant: tabular },
+  label: { fontSize: 15, lineHeight: 20, fontWeight: '500', fontVariant: tabular },
+  body: { fontSize: 16, lineHeight: 24, fontVariant: tabular },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: '600', letterSpacing: -0.44, fontVariant: tabular },
+  headline: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.56, fontVariant: tabular },
   pin: { fontSize: 24, lineHeight: 32, fontWeight: '600', fontVariant: tabular },
-  amount: { fontSize: 40, lineHeight: 48, fontWeight: '700', fontVariant: tabular },
+  amount: { fontSize: 40, lineHeight: 48, fontWeight: '700', letterSpacing: -0.8, fontVariant: tabular },
 } as const satisfies Record<string, TextStyle>;
 
 /**

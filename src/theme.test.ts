@@ -14,6 +14,21 @@ function contrast(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+describe('palette', () => {
+  it('is black, white and grey only (every channel equal)', () => {
+    for (const [name, hex] of Object.entries(colors)) {
+      const [r, g, b] = [1, 3, 5].map((i) => hex.slice(i, i + 2));
+      expect([name, r === g && g === b]).toEqual([name, true]);
+    }
+  });
+
+  it('never leans on colour to tell success from error: both are plain ink', () => {
+    // State is carried by icons, weight and words, so these may share a value.
+    expect(colors.success).toBe(colors.ink);
+    expect(colors.error).toBe(colors.ink);
+  });
+});
+
 describe('colour contrast', () => {
   // Every pair the app actually draws text in. Body text needs 4.5:1 (WCAG AA).
   it.each([

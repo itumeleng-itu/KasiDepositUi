@@ -53,7 +53,9 @@ export function Button({
     >
       <View style={styles.content}>
         {loading && <ActivityIndicator color={textColor} />}
-        <Text style={[styles.label, { color: textColor }]}>{shownLabel}</Text>
+        <Text style={[styles.label, variant === 'text' && styles.labelText, { color: textColor }]}>
+          {shownLabel}
+        </Text>
       </View>
     </Pressable>
   );
@@ -76,23 +78,25 @@ const styles = StyleSheet.create({
   filled: {
     minHeight: size.button,
     alignSelf: 'stretch',
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
   },
   textVariant: { alignSelf: 'center' },
   alignStart: { alignSelf: 'flex-start', paddingHorizontal: 0 },
   primary: { backgroundColor: colors.primary },
   primaryDisabled: { backgroundColor: colors.disabled },
   secondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.paper,
     borderWidth: borderWidth.thick,
     borderColor: colors.primary,
   },
   secondaryDisabled: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.paper,
     borderWidth: borderWidth.thick,
     borderColor: colors.line,
   },
   pressed: { opacity: opacity.pressed },
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  label: { ...type.body, fontWeight: '700', textAlign: 'center' },
+  label: { ...type.body, fontWeight: '600', textAlign: 'center' },
+  // With no colour to say "this is a link", text buttons are underlined.
+  labelText: { textDecorationLine: 'underline' },
 });

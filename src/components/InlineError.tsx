@@ -18,5 +18,6 @@ export function InlineError({ message }: { message: string }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  text: { ...type.label, flex: 1, color: colors.error },
+  // No red in a black and white palette: the icon and the heavier weight mark it as an error.
+  text: { ...type.label, flex: 1, fontWeight: '700', color: colors.error },
 });
