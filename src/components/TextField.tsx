@@ -12,6 +12,8 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   inputRef?: Ref<TextInput>;
   /** Overrides for the input text, e.g. the larger PIN style. */
   inputStyle?: TextStyle;
+  /** Keep the label for screen readers but do not draw it (the screen's heading already says it). */
+  hideLabel?: boolean;
 }
 
 export function TextField({
@@ -20,6 +22,7 @@ export function TextField({
   helper,
   inputRef,
   inputStyle,
+  hideLabel = false,
   onFocus,
   onBlur,
   ...inputProps
@@ -28,7 +31,7 @@ export function TextField({
 
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      {hideLabel ? null : <Text style={styles.label}>{label}</Text>}
       <TextInput
         ref={inputRef}
         accessibilityLabel={label}

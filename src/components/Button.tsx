@@ -13,6 +13,8 @@ interface ButtonProps {
   loading?: boolean;
   /** Text shown while loading, e.g. "Saving". Falls back to `label`. */
   loadingLabel?: string;
+  /** Text buttons only: sit at the start of the row (Back) rather than centred. */
+  align?: 'start' | 'center';
   /** Read by screen readers instead of `label`, e.g. "Send 495 rand". */
   accessibilityLabel?: string;
   accessibilityHint?: string;
@@ -25,6 +27,7 @@ export function Button({
   disabled = false,
   loading = false,
   loadingLabel,
+  align = 'center',
   accessibilityLabel,
   accessibilityHint,
 }: ButtonProps) {
@@ -42,6 +45,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         variant === 'text' ? styles.textVariant : styles.filled,
+        variant === 'text' && align === 'start' && styles.alignStart,
         variant === 'primary' && (disabled ? styles.primaryDisabled : styles.primary),
         variant === 'secondary' && (disabled ? styles.secondaryDisabled : styles.secondary),
         pressed && !inactive && styles.pressed,
@@ -74,6 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
   },
   textVariant: { alignSelf: 'center' },
+  alignStart: { alignSelf: 'flex-start', paddingHorizontal: 0 },
   primary: { backgroundColor: colors.primary },
   primaryDisabled: { backgroundColor: colors.disabled },
   secondary: {

@@ -82,6 +82,10 @@ export const confirm = {
   note: "Money usually arrives within a minute. This can't be undone once sent.",
   /** The amount is in the button so the user confirms a specific number. */
   send: (payoutCents: Cents) => `Send ${formatRand(payoutCents)}`,
+  /** Shown on the disabled button when the voucher is too small, instead of a misleading amount. */
+  cannotSend: "Can't send this voucher",
+  paidIntoSpoken: (name: string, bank: string, last4: string) =>
+    `Paid into ${name}, ${bank}, account ending ${last4}`,
   sendLabel: (payoutCents: Cents) => `Send ${spokenRand(payoutCents)}`,
   sending: 'Sending',
   notMyDetails: "These aren't my details",

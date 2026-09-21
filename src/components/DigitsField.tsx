@@ -45,6 +45,8 @@ export function DigitsField({
       keyboardType="number-pad"
       inputMode="numeric"
       autoCorrect={false}
+      spellCheck={false}
+      autoCapitalize="none"
       autoComplete="off"
       importantForAutofill="no"
       onChangeText={(text) => {

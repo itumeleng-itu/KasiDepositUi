@@ -81,7 +81,7 @@ export const type = {
   body: { fontSize: 16, lineHeight: 22, fontVariant: tabular },
   title: { fontSize: 22, lineHeight: 28, fontWeight: '700', fontVariant: tabular },
   headline: { fontSize: 28, lineHeight: 34, fontWeight: '700', fontVariant: tabular },
-  pin: { fontSize: 24, lineHeight: 32, fontWeight: '600', letterSpacing: 1, fontVariant: tabular },
+  pin: { fontSize: 24, lineHeight: 32, fontWeight: '600', fontVariant: tabular },
   amount: { fontSize: 40, lineHeight: 48, fontWeight: '700', fontVariant: tabular },
 } as const satisfies Record<string, TextStyle>;
 
