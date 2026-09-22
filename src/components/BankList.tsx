@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BANKS, type BankId } from '../domain/banks';
-import { borderWidth, colors, radius, size, spacing, type } from '../theme';
+import { borderWidth, colors, fontFamily, radius, size, spacing, type } from '../theme';
 import { Icon } from './Icon';
 import { InlineError } from './InlineError';
 
@@ -69,5 +69,5 @@ const styles = StyleSheet.create({
   },
   rowPressed: { backgroundColor: colors.primaryTint },
   name: { ...type.body, flex: 1, color: colors.ink },
-  nameSelected: { fontWeight: '700', color: colors.primary },
+  nameSelected: { fontFamily: fontFamily.bold, color: colors.primary },
 });

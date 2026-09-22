@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { status } from '../copy';
 import type { StepState } from '../polling';
-import { borderWidth, colors, size, spacing, type } from '../theme';
+import { borderWidth, colors, fontFamily, size, spacing, type } from '../theme';
 import { Icon } from './Icon';
 
 const LABELS = [status.steps.checked, status.steps.sent, status.steps.arrived] as const;
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   number: { ...type.label, color: colors.inkMuted },
-  numberCurrent: { color: colors.primary, fontWeight: '700' },
+  numberCurrent: { color: colors.primary, fontFamily: fontFamily.bold },
   label: { ...type.label, color: colors.ink, textAlign: 'center' },
-  labelTodo: { color: colors.inkMuted, fontWeight: '400' },
+  labelTodo: { color: colors.inkMuted, fontFamily: fontFamily.regular },
 });

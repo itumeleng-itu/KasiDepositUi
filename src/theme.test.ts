@@ -1,4 +1,4 @@
-import { borderWidth, colors, size, spacing, type } from './theme';
+import { borderWidth, colors, fontFamily, size, spacing, type } from './theme';
 
 // WCAG 2.x relative luminance and contrast ratio.
 function luminance(hex: string): number {
@@ -87,6 +87,19 @@ describe('sizes and spacing', () => {
     for (const style of Object.values(type)) {
       expect(style.fontVariant).toEqual(['tabular-nums']);
     }
+  });
+
+  it('every text style names one of the four loaded Inter weights', () => {
+    const loaded = Object.values(fontFamily);
+    for (const style of Object.values(type)) {
+      expect(loaded).toContain(style.fontFamily);
+    }
+  });
+
+  it('the four weights are Inter and distinct', () => {
+    const families = Object.values(fontFamily);
+    expect(new Set(families).size).toBe(families.length);
+    for (const family of families) expect(family.startsWith('Inter_')).toBe(true);
   });
 
   it('borders are 1 and 2 dp', () => {

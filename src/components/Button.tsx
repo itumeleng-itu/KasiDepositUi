@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderWidth, colors, opacity, radius, size, spacing, type } from '../theme';
+import { borderWidth, colors, fontFamily, opacity, radius, size, spacing, type } from '../theme';
 
 type Variant = 'primary' | 'secondary' | 'text';
 
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: opacity.pressed },
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  label: { ...type.body, fontWeight: '600', textAlign: 'center' },
+  label: { ...type.body, fontFamily: fontFamily.semibold, textAlign: 'center' },
   // With no colour to say "this is a link", text buttons are underlined.
   labelText: { textDecorationLine: 'underline' },
 });

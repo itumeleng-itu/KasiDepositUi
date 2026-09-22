@@ -83,19 +83,50 @@ export const motion = {
 const tabular: TextStyle['fontVariant'] = ['tabular-nums'];
 
 /**
+ * Inter, loaded in app/_layout.tsx. React Native applies a custom font's own weight, so every
+ * style below names the family for its weight directly rather than using `fontWeight` (which
+ * Android ignores on a non-system font). `fontFamily` is undefined until the fonts have loaded;
+ * RootLayout does not render the app until then, so no screen sees the system-font fallback.
+ */
+export const fontFamily = {
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;
+
+/**
  * Type scale. Every style uses tabular figures so digits line up. Headings are heavier and set
  * slightly tight (about -0.02em, in points) for a confident, quiet look; body text is left alone
  * for legibility. `pin` is not in the base scale: the PIN must be at least 24 and is not
  * tracked, so that 16 digits still fit a 320 dp screen.
  */
 export const type = {
-  caption: { fontSize: 13, lineHeight: 18, fontVariant: tabular },
-  label: { fontSize: 15, lineHeight: 20, fontWeight: '500', fontVariant: tabular },
-  body: { fontSize: 16, lineHeight: 24, fontVariant: tabular },
-  title: { fontSize: 22, lineHeight: 28, fontWeight: '600', letterSpacing: -0.44, fontVariant: tabular },
-  headline: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.56, fontVariant: tabular },
-  pin: { fontSize: 24, lineHeight: 32, fontWeight: '600', fontVariant: tabular },
-  amount: { fontSize: 40, lineHeight: 48, fontWeight: '700', letterSpacing: -0.8, fontVariant: tabular },
+  caption: { fontSize: 13, lineHeight: 18, fontFamily: fontFamily.regular, fontVariant: tabular },
+  label: { fontSize: 15, lineHeight: 20, fontFamily: fontFamily.medium, fontVariant: tabular },
+  body: { fontSize: 16, lineHeight: 24, fontFamily: fontFamily.regular, fontVariant: tabular },
+  title: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: fontFamily.semibold,
+    letterSpacing: -0.44,
+    fontVariant: tabular,
+  },
+  headline: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: fontFamily.bold,
+    letterSpacing: -0.56,
+    fontVariant: tabular,
+  },
+  pin: { fontSize: 24, lineHeight: 32, fontFamily: fontFamily.semibold, fontVariant: tabular },
+  amount: {
+    fontSize: 40,
+    lineHeight: 48,
+    fontFamily: fontFamily.bold,
+    letterSpacing: -0.8,
+    fontVariant: tabular,
+  },
 } as const satisfies Record<string, TextStyle>;
 
 /**
