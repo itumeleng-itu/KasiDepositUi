@@ -1,15 +1,18 @@
 import { calculatePayout, FAKE_FLAT_FEE_CENTS } from '../domain/fees';
 import { ApiError } from './errors';
 import { createFakeApi, randomDelayMs } from './fake';
-import type { Beneficiary } from './types';
+import type { Destination } from './types';
 
-const beneficiary: Beneficiary = {
+const destination: Destination = {
+  kind: 'account',
   name: 'Thabo Mokoena',
   accountNumber: '1234564417',
   bankId: 'capitec',
 };
 
 const pinEndingIn = (digit: number) => `123456789012345${digit}`;
+const shapIdEndingIn = (digit: number, suffix?: string) =>
+  `+2782123456${digit}${suffix ? `@${suffix}` : ''}`;
 
 function setup() {
   const clock = { now: 1_000_000 };
@@ -89,13 +92,61 @@ describe('fake API: lookupVoucher scenarios', () => {
   });
 });
 
+describe('fake API: resolveShapId scenarios', () => {
+  it('a number ending in 9 is not found', async () => {
+    const { api } = setup();
+    const error = await rejection(api.resolveShapId(shapIdEndingIn(9)));
+    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_not_found' });
+  });
+
+  it('a number ending in 8 is suspended', async () => {
+    const { api } = setup();
+    const error = await rejection(api.resolveShapId(shapIdEndingIn(8)));
+    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_suspended' });
+  });
+
+  it('a number ending in 7 with no @suffix is ambiguous', async () => {
+    const { api } = setup();
+    const error = await rejection(api.resolveShapId(shapIdEndingIn(7)));
+    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_ambiguous' });
+  });
+
+  it('a number ending in 7 WITH a @bank suffix resolves normally, at that bank', async () => {
+    const { api } = setup();
+    const resolved = await api.resolveShapId(shapIdEndingIn(7, 'fnb'));
+    expect(resolved).toEqual({ shapName: 'M. Mothiba', bankId: 'fnb' });
+  });
+
+  it('a number ending in 6 is a network error, not a business error', async () => {
+    const { api } = setup();
+    const error = await rejection(api.resolveShapId(shapIdEndingIn(6)));
+    expect(error.kind).toBe('network');
+    expect(error.reason).toBeUndefined();
+  });
+
+  it.each([0, 1, 2, 3, 4, 5])('any other last digit (%d) resolves at Capitec', async (digit) => {
+    const { api } = setup();
+    const resolved = await api.resolveShapId(shapIdEndingIn(digit));
+    expect(resolved).toEqual({ shapName: 'M. Mothiba', bankId: 'capitec' });
+  });
+
+  it('never logs the ShapID', async () => {
+    const { api, logs } = setup();
+    const shapId = shapIdEndingIn(0);
+    await api.resolveShapId(shapId);
+    await rejection(api.resolveShapId(shapIdEndingIn(9)));
+    expect(logs.length).toBeGreaterThan(0);
+    for (const line of logs) expect(line).not.toContain(shapId);
+  });
+});
+
 describe('fake API: idempotency', () => {
   it('the same key returns the same deposit, not a second one', async () => {
     const { api } = setup();
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
 
-    const first = await api.createDeposit(voucherToken, beneficiary, 'key-1');
-    const second = await api.createDeposit(voucherToken, beneficiary, 'key-1');
+    const first = await api.createDeposit(voucherToken, destination, 'key-1');
+    const second = await api.createDeposit(voucherToken, destination, 'key-1');
 
     expect(second).toEqual(first);
     expect(second.id).toBe(first.id);
@@ -107,21 +158,21 @@ describe('fake API: idempotency', () => {
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
 
     const [a, b] = await Promise.all([
-      api.createDeposit(voucherToken, beneficiary, 'key-1'),
-      api.createDeposit(voucherToken, beneficiary, 'key-1'),
+      api.createDeposit(voucherToken, destination, 'key-1'),
+      api.createDeposit(voucherToken, destination, 'key-1'),
     ]);
 
     expect(a.id).toBe(b.id);
   });
 
-  it('the same key still returns the original deposit if the beneficiary changed', async () => {
+  it('the same key still returns the original deposit if the destination changed', async () => {
     const { api } = setup();
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
 
-    const first = await api.createDeposit(voucherToken, beneficiary, 'key-1');
+    const first = await api.createDeposit(voucherToken, destination, 'key-1');
     const second = await api.createDeposit(
       voucherToken,
-      { ...beneficiary, accountNumber: '9999999999' },
+      { ...destination, accountNumber: '9999999999' },
       'key-1',
     );
 
@@ -131,9 +182,9 @@ describe('fake API: idempotency', () => {
   it('a different key for an already-used voucher is refused, so it cannot pay twice', async () => {
     const { api } = setup();
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
-    await api.createDeposit(voucherToken, beneficiary, 'key-1');
+    await api.createDeposit(voucherToken, destination, 'key-1');
 
-    const error = await rejection(api.createDeposit(voucherToken, beneficiary, 'key-2'));
+    const error = await rejection(api.createDeposit(voucherToken, destination, 'key-2'));
     expect(error).toMatchObject({ kind: 'business', reason: 'voucher_already_redeemed' });
   });
 
@@ -142,8 +193,8 @@ describe('fake API: idempotency', () => {
     const a = await api.lookupVoucher(pinEndingIn(0));
     const b = await api.lookupVoucher(pinEndingIn(0));
 
-    const first = await api.createDeposit(a.voucherToken, beneficiary, 'key-a');
-    const second = await api.createDeposit(b.voucherToken, beneficiary, 'key-b');
+    const first = await api.createDeposit(a.voucherToken, destination, 'key-a');
+    const second = await api.createDeposit(b.voucherToken, destination, 'key-b');
 
     expect(second.id).not.toBe(first.id);
     expect(second.reference).not.toBe(first.reference);
@@ -154,7 +205,7 @@ describe('fake API: deposit lifecycle', () => {
   async function start(digit: number) {
     const ctx = setup();
     const { voucherToken } = await ctx.api.lookupVoucher(pinEndingIn(digit));
-    const deposit = await ctx.api.createDeposit(voucherToken, beneficiary, `key-${digit}`);
+    const deposit = await ctx.api.createDeposit(voucherToken, destination, `key-${digit}`);
     return { ...ctx, deposit };
   }
 
@@ -173,23 +224,23 @@ describe('fake API: deposit lifecycle', () => {
     expect(done.failureReason).toBeUndefined();
   });
 
-  it('scenario 2 fails with invalid_account', async () => {
+  it('scenario 2 fails with insufficient_float', async () => {
     const { api, clock, deposit } = await start(2);
     clock.now += 1600;
     expect((await api.getDepositStatus(deposit.id)).status).toBe('submitted');
     clock.now += 1600;
     expect(await api.getDepositStatus(deposit.id)).toMatchObject({
       status: 'failed',
-      failureReason: 'invalid_account',
+      failureReason: 'insufficient_float',
     });
   });
 
-  it('scenario 3 fails with insufficient_float', async () => {
+  it('scenario 3 fails with bank_unavailable', async () => {
     const { api, clock, deposit } = await start(3);
     clock.now += 3200;
     expect(await api.getDepositStatus(deposit.id)).toMatchObject({
       status: 'failed',
-      failureReason: 'insufficient_float',
+      failureReason: 'bank_unavailable',
     });
   });
 
@@ -206,7 +257,7 @@ describe('fake API: deposit lifecycle', () => {
   it('scenario 6 cannot be deposited: too small', async () => {
     const { api } = setup();
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(6));
-    const error = await rejection(api.createDeposit(voucherToken, beneficiary, 'key-6'));
+    const error = await rejection(api.createDeposit(voucherToken, destination, 'key-6'));
     expect(error).toMatchObject({ kind: 'business', reason: 'voucher_too_small' });
   });
 

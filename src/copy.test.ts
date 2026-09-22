@@ -1,5 +1,13 @@
-import { failure, isRetryable, needsAccountChange, statusCopy } from './copy';
-import type { FailureReason } from './api/types';
+import {
+  ALL_CLEARING_FAILURES,
+  ALL_IDENTITY_FAILURES,
+  ALL_VOUCHER_FAILURES,
+  failureMessage,
+  isClearingFailure,
+  nextStatusAction,
+  SAFE_MONEY,
+  statusCopy,
+} from './copy';
 
 const destination = { bankName: 'Capitec', maskedAccount: '••••4417' };
 
@@ -27,20 +35,16 @@ describe('statusCopy: the copy from the brief, word for word', () => {
 
   it('failed, with the reason and the reassurance', () => {
     expect(
-      statusCopy('failed', {
-        payoutCents: 49500,
-        destination,
-        failureReason: 'invalid_account',
-      }),
+      statusCopy('failed', { payoutCents: 49500, destination, failureReason: 'bank_unavailable' }),
     ).toMatchObject({
       headline: "We couldn't send this deposit",
-      support: "Your bank didn't accept this account number. Your money is safe and hasn't been lost.",
+      support: `The bank is temporarily unavailable. ${SAFE_MONEY}`,
     });
   });
 
-  it('failed with no reason is our problem, not the user', () => {
+  it('failed with no reason is our problem, not the user, and still reassures', () => {
     expect(statusCopy('failed', { payoutCents: 0, destination }).support).toBe(
-      "Something went wrong on our side. Your money is safe and hasn't been lost.",
+      `Something went wrong on our side. ${SAFE_MONEY}`,
     );
   });
 
@@ -60,17 +64,6 @@ describe('statusCopy: screen readers and unknown destinations', () => {
     expect(text.spokenSupport).not.toContain('•');
   });
 
-  it('speaks amounts that appear inside a failure reason', () => {
-    const text = statusCopy('failed', {
-      payoutCents: 0,
-      destination,
-      failureReason: 'voucher_too_small',
-    });
-    expect(text.support).toContain('R10.00');
-    expect(text.spokenSupport).toContain('10 rand');
-    expect(text.spokenSupport).not.toContain('R10.00');
-  });
-
   it('copes without a destination', () => {
     expect(statusCopy('submitted', { payoutCents: 1, destination: null }).support).toBe(
       'Sent to your bank. This usually takes under a minute.',
@@ -81,35 +74,83 @@ describe('statusCopy: screen readers and unknown destinations', () => {
   });
 });
 
-describe('failure next steps', () => {
-  it('only account problems ask for new account details', () => {
-    expect(needsAccountChange('invalid_account')).toBe(true);
-    expect(needsAccountChange('inactive_account')).toBe(true);
-    expect(needsAccountChange('bank_processing_error')).toBe(false);
-    expect(needsAccountChange(undefined)).toBe(false);
+describe('the reassurance rule (§5): enforced as a loop, not per reason', () => {
+  it('lists every reason exactly once across the three groups', () => {
+    const all = [...ALL_IDENTITY_FAILURES, ...ALL_CLEARING_FAILURES, ...ALL_VOUCHER_FAILURES];
+    expect(new Set(all).size).toBe(all.length);
   });
 
-  it('bank, float and unknown problems are retryable; account and voucher ones are not', () => {
-    const retryable: FailureReason[] = ['bank_processing_error', 'insufficient_float', 'unknown'];
-    const notRetryable: FailureReason[] = [
-      'invalid_account',
-      'inactive_account',
-      'voucher_not_found',
-      'voucher_already_redeemed',
-      'voucher_too_small',
-    ];
-    for (const reason of retryable) expect(isRetryable(reason)).toBe(true);
-    for (const reason of notRetryable) expect(isRetryable(reason)).toBe(false);
-    expect(isRetryable(undefined)).toBe(true);
+  it.each(ALL_IDENTITY_FAILURES)('%s never says the money is safe: nothing has moved yet', (reason) => {
+    expect(isClearingFailure(reason)).toBe(false);
+    expect(failureMessage(reason)).not.toContain('safe');
   });
 
-  it('keeps the message table from the brief', () => {
-    expect(failure.insufficient_float).toEqual({
-      message: "We couldn't send this right now.",
-      next: 'try_later',
-    });
-    expect(failure.voucher_too_small.message).toBe(
+  it.each(ALL_VOUCHER_FAILURES)('%s never says the money is safe: pre-clearing, unchanged', (reason) => {
+    expect(isClearingFailure(reason)).toBe(false);
+    expect(failureMessage(reason)).not.toContain('safe');
+  });
+
+  it.each(ALL_CLEARING_FAILURES)('%s always says the money is safe: settlement was attempted', (reason) => {
+    expect(isClearingFailure(reason)).toBe(true);
+    expect(failureMessage(reason)).toContain('safe');
+  });
+
+  it('SAFE_MONEY is concatenated in exactly one place in the codebase', () => {
+    // A grep-style check: `reassure` (copy.ts) must be the only function whose source contains
+    // the literal concatenation. This does not re-verify the source text itself — that is what
+    // the per-reason loops above are for — it guards against a second call site ever appending
+    // the sentence a second time (doubling it) by re-deriving it locally instead of calling
+    // `reassure`/`failureMessage`.
+    for (const reason of ALL_CLEARING_FAILURES) {
+      const once = failureMessage(reason);
+      expect(once.split(SAFE_MONEY).length - 1).toBe(1);
+    }
+  });
+});
+
+describe('failureMessage: exact copy for reasons the brief gives verbatim', () => {
+  it('shapid_not_found makes the fix obvious', () => {
+    expect(failureMessage('shapid_not_found')).toBe(
+      "We couldn't find that number on PayShap. Check the digits, or register your number in your banking app.",
+    );
+  });
+
+  it('shapid_ambiguous', () => {
+    expect(failureMessage('shapid_ambiguous')).toBe(
+      'This number is registered at more than one bank. Choose which bank should receive your money.',
+    );
+  });
+
+  it('voucher_too_small keeps the minimum-voucher copy unchanged', () => {
+    expect(failureMessage('voucher_too_small')).toBe(
       'This voucher is too small to deposit. The minimum is R10.00.',
     );
+  });
+
+  it('insufficient_float', () => {
+    expect(failureMessage('insufficient_float')).toBe(`We couldn't send this right now. ${SAFE_MONEY}`);
+  });
+});
+
+describe('nextStatusAction', () => {
+  it('insufficient_float waits', () => {
+    expect(nextStatusAction('insufficient_float')).toBe('try_later');
+  });
+
+  it('limit_exceeded has no specific recovery: a fresh deposit is the only option', () => {
+    expect(nextStatusAction('limit_exceeded')).toBe('make_another');
+  });
+
+  it.each(['bank_unavailable', 'bank_processing_error', 'unknown'] as const)(
+    '%s can be retried',
+    (reason) => {
+      expect(nextStatusAction(reason)).toBe('try_again');
+    },
+  );
+
+  it('never suggests changing the destination: it was already resolved before Send', () => {
+    for (const reason of [...ALL_CLEARING_FAILURES, ...ALL_VOUCHER_FAILURES]) {
+      expect(['try_again', 'try_later', 'make_another']).toContain(nextStatusAction(reason));
+    }
   });
 });

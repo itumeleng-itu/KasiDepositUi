@@ -80,9 +80,12 @@ export default function ConfirmScreen() {
       // network, a double tap or a retry can never pay twice.
       const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
 
+      // TEMPORARY: the account branch, exactly as the wire format expects it. Replaced by a
+      // real Destination (ShapID or account) once setup is rewritten in the screens phase.
       const created = await api.createDeposit(
         session.lookup.voucherToken,
         {
+          kind: 'account',
           name: beneficiary.name,
           accountNumber: beneficiary.accountNumber,
           bankId: beneficiary.bankId,
@@ -108,7 +111,7 @@ export default function ConfirmScreen() {
       if (router.canDismiss()) router.dismissAll();
       router.replace({ pathname: '/status/[id]', params: { id: created.id } });
     } catch (caught) {
-      setError(describeError(caught, { voucherAccepted: true }).message);
+      setError(describeError(caught, { moneyMayHaveMoved: true }));
       sendingRef.current = false;
       setSending(false);
     }

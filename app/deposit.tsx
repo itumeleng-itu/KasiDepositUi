@@ -56,7 +56,7 @@ export default function DepositScreen() {
       router.push('/confirm');
     } catch (caught) {
       // The PIN stays in the field so the user can check it against the slip.
-      setError(describeError(caught, { voucherAccepted: false }).message);
+      setError(describeError(caught, { moneyMayHaveMoved: false }));
     } finally {
       busyRef.current = false;
       setLoading(false);

@@ -3,7 +3,8 @@
  *
  * ASSUMED contract (nothing on the backend exists yet; change here when it does):
  *   POST /vouchers/lookup   { pin }                                  -> voucher lookup
- *   POST /deposits          { voucher_token, beneficiary }           -> deposit
+ *   GET  /shapid/{shapId}   (ShapID URL-encoded: + and @ survive)    -> resolved ShapID
+ *   POST /deposits          { voucher_token, destination }           -> deposit
  *                           with an `Idempotency-Key` header
  *   GET  /deposits/{id}                                              -> deposit
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
@@ -11,7 +12,19 @@
  */
 import type { BankId } from '../domain/banks';
 import { ApiError } from './errors';
-import type { Beneficiary, Deposit, DepositStatus, FailureReason, VoucherLookup } from './types';
+import {
+  CLEARING_FAILURE_REASONS,
+  IDENTITY_FAILURE_REASONS,
+  VOUCHER_FAILURE_REASONS,
+  type ClearingFailure,
+  type Deposit,
+  type DepositStatus,
+  type Destination,
+  type FailureReason,
+  type ResolvedShapId,
+  type VoucherFailure,
+  type VoucherLookup,
+} from './types';
 
 /**
  * Provider bank enum values. PLACEHOLDERS: replace with the real provider's enum once known.
@@ -30,17 +43,6 @@ export const BANK_API_CODES: Record<BankId, string> = {
   investec: 'INVESTEC',
 };
 
-const FAILURE_REASONS: Record<FailureReason, true> = {
-  voucher_not_found: true,
-  voucher_already_redeemed: true,
-  voucher_too_small: true,
-  invalid_account: true,
-  inactive_account: true,
-  bank_processing_error: true,
-  insufficient_float: true,
-  unknown: true,
-};
-
 const DEPOSIT_STATUSES: Record<DepositStatus, true> = {
   pending: true,
   submitted: true,
@@ -53,7 +55,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isFailureReason(value: unknown): value is FailureReason {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(FAILURE_REASONS, value);
+  return (
+    typeof value === 'string' &&
+    (Object.prototype.hasOwnProperty.call(IDENTITY_FAILURE_REASONS, value) ||
+      Object.prototype.hasOwnProperty.call(CLEARING_FAILURE_REASONS, value) ||
+      Object.prototype.hasOwnProperty.call(VOUCHER_FAILURE_REASONS, value))
+  );
+}
+
+function isDepositFailureReason(value: unknown): value is ClearingFailure | VoucherFailure {
+  return (
+    typeof value === 'string' &&
+    (Object.prototype.hasOwnProperty.call(CLEARING_FAILURE_REASONS, value) ||
+      Object.prototype.hasOwnProperty.call(VOUCHER_FAILURE_REASONS, value))
+  );
 }
 
 function isDepositStatus(value: unknown): value is DepositStatus {
@@ -64,11 +79,15 @@ function isCents(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value);
 }
 
-export function beneficiaryToWire(beneficiary: Beneficiary) {
+export function destinationToWire(destination: Destination) {
+  if (destination.kind === 'shapId') {
+    return { kind: 'shap_id', shap_id: destination.shapId };
+  }
   return {
-    name: beneficiary.name,
-    account_number: beneficiary.accountNumber,
-    bank: BANK_API_CODES[beneficiary.bankId],
+    kind: 'account',
+    name: destination.name,
+    account_number: destination.accountNumber,
+    bank: BANK_API_CODES[destination.bankId],
   };
 }
 
@@ -107,6 +126,23 @@ export function parseVoucherLookup(body: unknown): VoucherLookup {
   };
 }
 
+/**
+ * The `@bank` suffix format is my best understanding of a scheme-level bank code, case
+ * insensitive. It may be a different identifier; this is why it is mapped to our own `BankId`
+ * slugs (via `BANK_API_CODES`, reversed) rather than passed through raw. Not verified against
+ * primary scheme documentation.
+ */
+export function parseResolvedShapId(body: unknown): ResolvedShapId {
+  if (!isRecord(body) || typeof body.shap_name !== 'string' || body.shap_name.length === 0) {
+    throw malformed();
+  }
+  const bankId = (Object.keys(BANK_API_CODES) as BankId[]).find(
+    (id) => BANK_API_CODES[id] === body.bank,
+  );
+  if (!bankId) throw malformed();
+  return { shapName: body.shap_name, bankId };
+}
+
 export function parseDeposit(body: unknown): Deposit {
   if (
     !isRecord(body) ||
@@ -124,7 +160,9 @@ export function parseDeposit(body: unknown): Deposit {
     payoutCents: body.payout_cents,
   };
   if (body.status === 'failed') {
-    deposit.failureReason = isFailureReason(body.failure_reason) ? body.failure_reason : 'unknown';
+    deposit.failureReason = isDepositFailureReason(body.failure_reason)
+      ? body.failure_reason
+      : 'unknown';
   }
   return deposit;
 }

@@ -1,9 +1,10 @@
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import {
-  beneficiaryToWire,
+  destinationToWire,
   interpretErrorResponse,
   parseDeposit,
+  parseResolvedShapId,
   parseVoucherLookup,
 } from './wire';
 
@@ -73,9 +74,15 @@ export const httpApi: ApiClient = {
     return parseVoucherLookup(body);
   },
 
-  async createDeposit(voucherToken, beneficiary, idempotencyKey) {
+  async resolveShapId(shapId) {
+    // encodeURIComponent turns '+' into %2B and '@' into %40, so both survive the request.
+    const body = await request('GET', `/shapid/${encodeURIComponent(shapId)}`);
+    return parseResolvedShapId(body);
+  },
+
+  async createDeposit(voucherToken, destination, idempotencyKey) {
     const body = await request('POST', '/deposits', {
-      body: { voucher_token: voucherToken, beneficiary: beneficiaryToWire(beneficiary) },
+      body: { voucher_token: voucherToken, destination: destinationToWire(destination) },
       headers: { 'Idempotency-Key': idempotencyKey },
     });
     return parseDeposit(body);

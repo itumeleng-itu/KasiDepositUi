@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/Button';
 import { Screen } from '../src/components/Screen';
-import { common, failure } from '../src/copy';
+import { common, failureMessage } from '../src/copy';
 import { colors, type } from '../src/theme';
 
 /**
@@ -19,7 +19,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
     <Screen>
       <Text accessibilityRole="header" style={styles.title}>
-        {failure.unknown.message}
+        {failureMessage('unknown')}
       </Text>
       <Button
         label={common.tryAgain}

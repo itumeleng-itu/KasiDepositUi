@@ -1,28 +1,46 @@
 /**
- * In-memory fake backend for demos and tests. Every scenario is chosen by the PIN's last digit,
- * so any case can be reproduced on a phone without code changes (see TESTING.md).
+ * In-memory fake backend for demos and tests. Every scenario is chosen by the last digit of the
+ * PIN or the ShapID's number, so any case can be reproduced on a phone without code changes
+ * (see TESTING.md).
  *
+ * Voucher scenarios (PIN's last digit):
  *   0  R500 voucher    pending -> submitted (1.5 s) -> completed (3 s)
  *   1  error           voucher_already_redeemed
- *   2  R200 voucher    ... -> failed invalid_account (3 s)
- *   3  R1 000 voucher  ... -> failed insufficient_float (3 s)
+ *   2  R200 voucher    ... -> failed insufficient_float (3 s)
+ *   3  R1 000 voucher  ... -> failed bank_unavailable (3 s)
  *   4  network error on lookup (simulates no signal)
  *   5  R50 voucher     submitted stays for 100 s, then completed
  *   6  R8 voucher      lookup works; too small to deposit
  *   7-9 error          voucher_not_found
  *
- * The scenario, payout and start time are encoded in the voucher token and deposit id, so
- * `getDepositStatus` keeps working after the app is killed and reopened (resume-after-close).
- * Idempotency and the "voucher already used" check are remembered in memory only, like a
- * real server's database would be for the life of this process.
+ * ShapID scenarios (last digit of the number, ignoring any @suffix):
+ *   9  shapid_not_found
+ *   8  shapid_suspended
+ *   7  shapid_ambiguous, unless a @bank suffix is present — then resolves at that bank
+ *   6  network error (simulates no signal)
+ *   anything else  { shapName: 'M. Mothiba', bankId: 'capitec' }
  *
- * Logs never contain the PIN: only the scenario digit.
+ * The voucher scenario, payout and start time are encoded in the voucher token and deposit id,
+ * so `getDepositStatus` keeps working after the app is killed and reopened (resume-after-close).
+ * Idempotency and the "voucher already used" check are remembered in memory only, like a real
+ * server's database would be for the life of this process.
+ *
+ * Logs never contain the PIN or the ShapID: only the scenario digit.
  */
+import { isBankId } from '../domain/banks';
 import { calculatePayout, FAKE_FLAT_FEE_CENTS, MIN_VOUCHER_CENTS } from '../domain/fees';
 import { formatRand, type Cents } from '../domain/money';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
-import type { Beneficiary, Deposit, DepositStatus, FailureReason, VoucherLookup } from './types';
+import type {
+  ClearingFailure,
+  Deposit,
+  DepositStatus,
+  Destination,
+  ResolvedShapId,
+  VoucherFailure,
+  VoucherLookup,
+} from './types';
 
 const SCENARIO_VOUCHER_CENTS: Readonly<Record<number, Cents>> = {
   0: 50000,
@@ -88,18 +106,18 @@ function decodeDepositId(id: string): DepositParts | null {
 function statusAt(
   scenario: number,
   elapsedMs: number,
-): { status: DepositStatus; failureReason?: FailureReason } {
+): { status: DepositStatus; failureReason?: ClearingFailure | VoucherFailure } {
   if (elapsedMs < SUBMITTED_AFTER_MS) return { status: 'pending' };
 
   switch (scenario) {
     case 2:
       return elapsedMs < COMPLETED_AFTER_MS
         ? { status: 'submitted' }
-        : { status: 'failed', failureReason: 'invalid_account' };
+        : { status: 'failed', failureReason: 'insufficient_float' };
     case 3:
       return elapsedMs < COMPLETED_AFTER_MS
         ? { status: 'submitted' }
-        : { status: 'failed', failureReason: 'insufficient_float' };
+        : { status: 'failed', failureReason: 'bank_unavailable' };
     case 5:
       return { status: elapsedMs < SLOW_COMPLETED_AFTER_MS ? 'submitted' : 'completed' };
     default:
@@ -182,15 +200,47 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       };
     },
 
+    async resolveShapId(shapId: string): Promise<ResolvedShapId> {
+      await sleep(delayMs());
+
+      const [numberPart, rawSuffix] = shapId.split('@');
+      const digit = numberPart.slice(-1);
+
+      if (digit === '9') {
+        log('[fake-api] resolveShapId scenario 9 -> shapid_not_found');
+        throw ApiError.business('shapid_not_found');
+      }
+      if (digit === '8') {
+        log('[fake-api] resolveShapId scenario 8 -> shapid_suspended');
+        throw ApiError.business('shapid_suspended');
+      }
+      if (digit === '7') {
+        if (rawSuffix === undefined) {
+          log('[fake-api] resolveShapId scenario 7 -> shapid_ambiguous');
+          throw ApiError.business('shapid_ambiguous');
+        }
+        const bankId = isBankId(rawSuffix) ? rawSuffix : 'capitec';
+        log(`[fake-api] resolveShapId scenario 7 with a bank chosen -> resolved at ${bankId}`);
+        return { shapName: 'M. Mothiba', bankId };
+      }
+      if (digit === '6') {
+        log('[fake-api] resolveShapId scenario 6 -> network error');
+        throw ApiError.network('Simulated no signal');
+      }
+
+      log(`[fake-api] resolveShapId scenario ${digit} -> resolved at capitec`);
+      return { shapName: 'M. Mothiba', bankId: 'capitec' };
+    },
+
     async createDeposit(
       voucherToken: string,
-      _beneficiary: Beneficiary,
+      _destination: Destination,
       idempotencyKey: string,
     ): Promise<Deposit> {
       await sleep(delayMs());
 
       // Idempotency first: the same key always returns the same deposit, even if the
-      // beneficiary changed since. A real server does this to make double-pay impossible.
+      // destination changed since. A real server does this to make double-pay impossible.
       const existing = depositByKey.get(idempotencyKey);
       if (existing) {
         log(`[fake-api] createDeposit replay of key ${idempotencyKey.slice(0, 8)} -> same deposit`);

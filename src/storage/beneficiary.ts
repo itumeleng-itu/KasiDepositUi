@@ -1,10 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 
-import type { Beneficiary } from '../api/types';
 import {
   BENEFICIARY_KEY,
   parseBeneficiary,
   serialiseBeneficiary,
+  type AccountBeneficiary,
   type StoredBeneficiary,
 } from './beneficiaryRecord';
 
@@ -36,6 +36,6 @@ export async function loadBeneficiary(): Promise<StoredBeneficiary | null> {
 }
 
 /** Rejects if the device could not store the details; the caller tells the user. */
-export async function saveBeneficiary(beneficiary: Beneficiary): Promise<void> {
+export async function saveBeneficiary(beneficiary: AccountBeneficiary): Promise<void> {
   await SecureStore.setItemAsync(BENEFICIARY_KEY, serialiseBeneficiary(beneficiary, Date.now()));
 }

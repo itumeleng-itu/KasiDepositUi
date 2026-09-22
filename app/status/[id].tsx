@@ -10,7 +10,7 @@ import { FadeIn } from '../../src/components/FadeIn';
 import { Icon } from '../../src/components/Icon';
 import { Screen } from '../../src/components/Screen';
 import { StepIndicator } from '../../src/components/StepIndicator';
-import { common, failure, isRetryable, needsAccountChange, statusCopy, status } from '../../src/copy';
+import { common, nextStatusAction, statusCopy, status } from '../../src/copy';
 import { maskAccountNumber } from '../../src/domain/account';
 import { bankName } from '../../src/domain/banks';
 import { successHaptic } from '../../src/haptics';
@@ -145,7 +145,7 @@ export default function StatusScreen() {
   const steps = progressSteps(deposit ? deposit.status : null);
   const reference = deposit ? deposit.reference : origin.reference;
   const failed = deposit?.status === 'failed';
-  const nextStep = failure[deposit?.failureReason ?? 'unknown'].next;
+  const action = nextStatusAction(deposit?.failureReason ?? 'unknown');
 
   return (
     <Screen>
@@ -184,25 +184,17 @@ export default function StatusScreen() {
           <Button label={status.makeAnother} onPress={() => router.replace('/deposit')} />
         ) : null}
 
-        {failed && needsAccountChange(deposit?.failureReason) ? (
+        {failed ? (
+          // A fresh PIN and lookup either way: the destination was already resolved before
+          // Send, so none of these reasons means "change your destination" — there is nothing
+          // to change. A fresh attempt is the only recovery path from here.
           <Button
-            label={status.changeAccount}
-            onPress={() =>
-              // Replace, so saving returns to the PIN screen rather than to this failed deposit.
-              router.replace({ pathname: '/setup', params: { mode: 'change', returnTo: 'deposit' } })
-            }
-          />
-        ) : null}
-
-        {failed && !needsAccountChange(deposit?.failureReason) ? (
-          <Button
-            // A fresh PIN and lookup: the failed deposit is finished.
             label={
-              isRetryable(deposit?.failureReason)
-                ? nextStep === 'try_later'
-                  ? status.tryAgainLater
+              action === 'try_later'
+                ? status.tryAgainLater
+                : action === 'make_another'
+                  ? status.makeAnother
                   : status.tryAgain
-                : status.makeAnother
             }
             onPress={() => router.replace('/deposit')}
           />

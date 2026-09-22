@@ -7,7 +7,13 @@ import { MIN_VOUCHER_CENTS } from './domain/fees';
 import { formatRand, spokenAmounts, spokenRand, type Cents } from './domain/money';
 import type { AccountError } from './domain/account';
 import type { NameError } from './domain/name';
-import type { DepositStatus, FailureReason } from './api/types';
+import {
+  CLEARING_FAILURE_REASONS,
+  IDENTITY_FAILURE_REASONS,
+  VOUCHER_FAILURE_REASONS,
+  type DepositStatus,
+  type FailureReason,
+} from './api/types';
 import { PIN_LENGTH } from './domain/pin';
 
 const MIN_VOUCHER = formatRand(MIN_VOUCHER_CENTS);
@@ -157,11 +163,10 @@ export function statusCopy(state: StatusScreenState, input: StatusCopyInput): St
       };
     }
     case 'failed':
-      return plain(
-        "We couldn't send this deposit",
-        // Reason messages already end with a full stop.
-        `${failure[input.failureReason ?? 'unknown'].message} ${SAFE_MONEY}`,
-      );
+      // A Deposit's failureReason is always a clearing or voucher reason (never identity, since
+      // the destination was already resolved before Send), so failureMessage always carries the
+      // reassurance here — which is correct: a deposit that reached this screen was accepted.
+      return plain("We couldn't send this deposit", failureMessage(input.failureReason ?? 'unknown'));
     case 'still_processing':
       return plain(
         'Still processing',
@@ -170,37 +175,72 @@ export function statusCopy(state: StatusScreenState, input: StatusCopyInput): St
   }
 }
 
-export type NextStep = 'stay' | 'change_details' | 'try_again' | 'try_later';
+/**
+ * Phase 1 (identity) failures never carry the reassurance: nothing was reserved yet, so nothing
+ * needs "un-losing". Phase 2 (clearing) failures always do: settlement was attempted, and if it
+ * did not go through the user needs telling that the attempt itself did not lose their money.
+ * The voucher group is unchanged from before this migration and, like identity failures, is
+ * pre-clearing — the PIN screen and confirm screen already keep the user in place on these.
+ */
+const FAILURE_MESSAGES: Record<FailureReason, string> = {
+  shapid_not_found:
+    "We couldn't find that number on PayShap. Check the digits, or register your number in your banking app.",
+  shapid_suspended: "This account can't receive PayShap payments right now. Check with your bank.",
+  shapid_invalid_format: "That doesn't look like a South African mobile number.",
+  shapid_ambiguous:
+    'This number is registered at more than one bank. Choose which bank should receive your money.',
+  insufficient_float: "We couldn't send this right now.",
+  limit_exceeded: "This is more than PayShap allows in one payment.",
+  bank_unavailable: 'The bank is temporarily unavailable.',
+  bank_processing_error: "The bank couldn't process this right now.",
+  unknown: 'Something went wrong on our side.',
+  voucher_not_found: "We couldn't find that PIN. Check each digit against your till slip.",
+  voucher_already_redeemed: 'This voucher has already been used.',
+  voucher_too_small: `This voucher is too small to deposit. The minimum is ${MIN_VOUCHER}.`,
+} satisfies Record<FailureReason, string>;
 
-export const failure: Record<FailureReason, { message: string; next: NextStep }> = {
-  voucher_not_found: {
-    message: "We couldn't find that PIN. Check each digit against your till slip.",
-    next: 'stay',
-  },
-  voucher_already_redeemed: { message: 'This voucher has already been used.', next: 'stay' },
-  voucher_too_small: {
-    message: `This voucher is too small to deposit. The minimum is ${MIN_VOUCHER}.`,
-    next: 'stay',
-  },
-  invalid_account: {
-    message: "Your bank didn't accept this account number.",
-    next: 'change_details',
-  },
-  inactive_account: { message: "This bank account isn't active.", next: 'change_details' },
-  bank_processing_error: {
-    message: "Your bank couldn't process this right now.",
-    next: 'try_again',
-  },
-  insufficient_float: { message: "We couldn't send this right now.", next: 'try_later' },
-  unknown: { message: 'Something went wrong on our side.', next: 'try_again' },
-};
+const CLEARING_REASON_SET: ReadonlySet<string> = new Set(Object.keys(CLEARING_FAILURE_REASONS));
 
-/** Only these can be retried from the status screen (after a fresh lookup). */
-export function isRetryable(reason: FailureReason | undefined): boolean {
-  const next = failure[reason ?? 'unknown'].next;
-  return next === 'try_again' || next === 'try_later';
+export function isClearingFailure(reason: FailureReason): boolean {
+  return CLEARING_REASON_SET.has(reason);
 }
 
-export function needsAccountChange(reason: FailureReason | undefined): boolean {
-  return reason === 'invalid_account' || reason === 'inactive_account';
+/**
+ * The one place `SAFE_MONEY` is appended to a message anywhere in the app. `failureMessage`
+ * uses it below for every clearing failure; `src/errorMessage.ts` calls it directly for the one
+ * other case that needs the same reassurance without a `FailureReason` to hand — a network
+ * error once a request could already have moved money.
+ */
+export function reassure(message: string): string {
+  return `${message} ${SAFE_MONEY}`;
 }
+
+/** The message for a reason, with the reassurance appended if and only if it is a clearing failure. */
+export function failureMessage(reason: FailureReason): string {
+  const message = FAILURE_MESSAGES[reason];
+  return isClearingFailure(reason) ? reassure(message) : message;
+}
+
+export type NextStatusAction = 'try_again' | 'try_later' | 'make_another';
+
+/**
+ * What the status screen offers after a failed deposit. Only clearing and voucher reasons can
+ * reach a `Deposit`, and none of them means "change your destination" — the destination was
+ * already resolved successfully before Send, so there is nothing to change.
+ */
+export function nextStatusAction(reason: FailureReason): NextStatusAction {
+  if (reason === 'insufficient_float') return 'try_later';
+  if (reason === 'limit_exceeded') return 'make_another';
+  return 'try_again';
+}
+
+/** Every member of each group, for the loop test that enforces the reassurance rule. */
+export const ALL_IDENTITY_FAILURES = Object.keys(
+  IDENTITY_FAILURE_REASONS,
+) as (keyof typeof IDENTITY_FAILURE_REASONS)[];
+export const ALL_CLEARING_FAILURES = Object.keys(
+  CLEARING_FAILURE_REASONS,
+) as (keyof typeof CLEARING_FAILURE_REASONS)[];
+export const ALL_VOUCHER_FAILURES = Object.keys(
+  VOUCHER_FAILURE_REASONS,
+) as (keyof typeof VOUCHER_FAILURE_REASONS)[];

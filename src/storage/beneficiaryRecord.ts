@@ -1,5 +1,11 @@
-/** Pure (no Expo imports) so the shape rules can be unit-tested. */
-import type { Beneficiary } from '../api/types';
+/**
+ * Pure (no Expo imports) so the shape rules can be unit-tested.
+ *
+ * This file is renamed to destinationRecord.ts in the ShapID migration's storage phase; until
+ * then it keeps its own account-shaped type rather than importing the now-removed `Beneficiary`
+ * from api/types.ts, so this layer does not need to change twice.
+ */
+import type { BankId } from '../domain/banks';
 import { validateAccountNumber } from '../domain/account';
 import { isBankId } from '../domain/banks';
 import { validateName } from '../domain/name';
@@ -7,12 +13,18 @@ import { validateName } from '../domain/name';
 export const BENEFICIARY_KEY = 'kd.beneficiary.v1';
 const VERSION = 1;
 
-export interface StoredBeneficiary extends Beneficiary {
+export interface AccountBeneficiary {
+  name: string;
+  accountNumber: string; // digits only
+  bankId: BankId;
+}
+
+export interface StoredBeneficiary extends AccountBeneficiary {
   /** Epoch milliseconds. */
   savedAt: number;
 }
 
-export function serialiseBeneficiary(beneficiary: Beneficiary, savedAt: number): string {
+export function serialiseBeneficiary(beneficiary: AccountBeneficiary, savedAt: number): string {
   return JSON.stringify({
     version: VERSION,
     name: beneficiary.name,

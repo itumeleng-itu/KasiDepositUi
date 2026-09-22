@@ -1,6 +1,6 @@
 import { fakeApi } from './fake';
 import { httpApi } from './http';
-import type { Beneficiary, Deposit, VoucherLookup } from './types';
+import type { Deposit, Destination, ResolvedShapId, VoucherLookup } from './types';
 
 /**
  * The only thing screens talk to. Every method rejects with an `ApiError`
@@ -9,10 +9,15 @@ import type { Beneficiary, Deposit, VoucherLookup } from './types';
 export interface ApiClient {
   /** The PIN is sent once, here. After this only `voucherToken` is used. */
   lookupVoucher(pin: string): Promise<VoucherLookup>;
+  /**
+   * Phase 1 (identity): looks the ShapID up in the proxy directory. Nothing is reserved and
+   * nothing can be lost yet, so a failure here is an `IdentityFailure`, never a clearing one.
+   */
+  resolveShapId(shapId: string): Promise<ResolvedShapId>;
   /** Safe to retry with the same `idempotencyKey`: the server returns the same deposit. */
   createDeposit(
     voucherToken: string,
-    beneficiary: Beneficiary,
+    destination: Destination,
     idempotencyKey: string,
   ): Promise<Deposit>;
   getDepositStatus(id: string): Promise<Deposit>;
