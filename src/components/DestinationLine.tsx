@@ -1,28 +1,26 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { deposit } from '../copy';
-import { lastFour, maskAccountNumber } from '../domain/account';
-import { bankName, type BankId } from '../domain/banks';
+import { describeDestination, type StoredDestination } from '../domain/destination';
 import { colors, spacing, type } from '../theme';
 import { Button } from './Button';
 
-// Structural, not imported from a shared type: this component is rewritten for a Destination
-// (ShapID or account) in the migration's screens phase. Kept minimal until then.
 interface DestinationLineProps {
-  beneficiary: { name: string; accountNumber: string; bankId: BankId };
+  destination: StoredDestination;
   onChange: () => void;
 }
 
-/** "Paying into ••••4417 · Capitec" with a Change button. Never shows the full account number. */
-export function DestinationLine({ beneficiary, onChange }: DestinationLineProps) {
-  const bank = bankName(beneficiary.bankId);
+/**
+ * "Paying into 082 123 4567 · Capitec" or "Paying into ••••4417 · Capitec", with a Change
+ * button. Never shows the full account number, and never branches on which kind of destination
+ * it is — describeDestination() already decided how to render either one.
+ */
+export function DestinationLine({ destination, onChange }: DestinationLineProps) {
+  const { oneLine, spokenOneLine } = describeDestination(destination);
   return (
     <View style={styles.row}>
-      <Text
-        style={styles.text}
-        accessibilityLabel={deposit.payingIntoLabel(lastFour(beneficiary.accountNumber), bank)}
-      >
-        {deposit.payingInto(maskAccountNumber(beneficiary.accountNumber), bank)}
+      <Text style={styles.text} accessibilityLabel={deposit.payingIntoLabel(spokenOneLine)}>
+        {deposit.payingInto(oneLine)}
       </Text>
       <Button
         variant="text"

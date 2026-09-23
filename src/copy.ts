@@ -65,8 +65,8 @@ export const setup = {
 } as const;
 
 export const deposit = {
-  payingInto: (masked: string, bank: string) => `Paying into ${masked} · ${bank}`,
-  payingIntoLabel: (last4: string, bank: string) => `Paying into account ending ${last4} at ${bank}`,
+  payingInto: (oneLine: string) => `Paying into ${oneLine}`,
+  payingIntoLabel: (spokenOneLine: string) => `Paying into ${spokenOneLine}`,
   change: 'Change',
   changeLabel: 'Change where your money goes',
   heading: 'Enter your voucher PIN',
@@ -90,8 +90,7 @@ export const confirm = {
   send: (payoutCents: Cents) => `Send ${formatRand(payoutCents)}`,
   /** Shown on the disabled button when the voucher is too small, instead of a misleading amount. */
   cannotSend: "Can't send this voucher",
-  paidIntoSpoken: (name: string, bank: string, last4: string) =>
-    `Paid into ${name}, ${bank}, account ending ${last4}`,
+  paidIntoSpoken: (primary: string, spokenOneLine: string) => `Paid into ${primary}, ${spokenOneLine}`,
   sendLabel: (payoutCents: Cents) => `Send ${spokenRand(payoutCents)}`,
   sending: 'Sending',
   notMyDetails: "These aren't my details",

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { loadActiveDeposit } from '../src/storage/activeDeposit';
-import { loadBeneficiary } from '../src/storage/beneficiary';
+import { loadDestination } from '../src/storage/destination';
 import { colors } from '../src/theme';
 
 /**
@@ -20,7 +20,7 @@ export default function Launcher() {
         const active = await loadActiveDeposit();
         if (active) {
           target = { pathname: '/status/[id]', params: { id: active.depositId } };
-        } else if (await loadBeneficiary()) {
+        } else if (await loadDestination()) {
           target = '/deposit';
         }
       } catch {

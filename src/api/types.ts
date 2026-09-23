@@ -1,4 +1,5 @@
 import type { BankId } from '../domain/banks';
+import type { StoredDestination } from '../domain/destination';
 import type { Cents } from '../domain/money';
 
 export type { BankId, Cents };
@@ -16,6 +17,16 @@ export type { BankId, Cents };
 export type Destination =
   | { kind: 'shapId'; shapId: string }
   | { kind: 'account'; name: string; accountNumber: string; bankId: BankId };
+
+/**
+ * What a stored, resolved destination becomes on the wire: drops `shapName` (the server already
+ * knows it — it is what resolved it) and the storage bookkeeping fields (resolvedAt, savedAt).
+ */
+export function toApiDestination(stored: StoredDestination): Destination {
+  return stored.kind === 'shapId'
+    ? { kind: 'shapId', shapId: stored.shapId }
+    : { kind: 'account', name: stored.name, accountNumber: stored.accountNumber, bankId: stored.bankId };
+}
 
 export interface ResolvedShapId {
   /**

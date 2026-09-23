@@ -4,19 +4,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { api } from '../src/api/client';
+import { toApiDestination } from '../src/api/types';
 import { Button } from '../src/components/Button';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
 import { common, confirm } from '../src/copy';
-import { lastFour, maskAccountNumber } from '../src/domain/account';
-import { bankName } from '../src/domain/banks';
+import { describeDestination } from '../src/domain/destination';
 import { isVoucherDepositable } from '../src/domain/fees';
 import { formatRand, spokenRand } from '../src/domain/money';
 import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
 import { saveActiveDeposit } from '../src/storage/activeDeposit';
-import { loadBeneficiary } from '../src/storage/beneficiary';
-import type { StoredBeneficiary } from '../src/storage/beneficiaryRecord';
+import { loadDestination } from '../src/storage/destination';
+import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
 import { borderWidth, colors, spacing, type } from '../src/theme';
 import {
   clearVoucherSession,
@@ -30,7 +30,7 @@ import {
  */
 export default function ConfirmScreen() {
   const [session] = useState(currentVoucherSession);
-  const [beneficiary, setBeneficiary] = useState<StoredBeneficiary | null>(null);
+  const [destination, setDestination] = useState<StoredDestinationRecord | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
@@ -44,9 +44,9 @@ export default function ConfirmScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      loadBeneficiary().then((saved) => {
+      loadDestination().then((saved) => {
         if (cancelled) return;
-        if (saved) setBeneficiary(saved);
+        if (saved) setDestination(saved);
         else router.replace('/setup');
       });
       return () => {
@@ -61,15 +61,14 @@ export default function ConfirmScreen() {
     return () => subscription.remove();
   }, []);
 
-  if (!session || !beneficiary) return <Screen>{null}</Screen>;
+  if (!session || !destination) return <Screen>{null}</Screen>;
 
   const { valueCents, feeCents, payoutCents } = session.lookup;
   const depositable = isVoucherDepositable(valueCents, feeCents);
-  const bank = bankName(beneficiary.bankId);
-  const masked = maskAccountNumber(beneficiary.accountNumber);
+  const { primary, secondary, spokenOneLine } = describeDestination(destination);
 
   async function onSend() {
-    if (!session || !beneficiary || !depositable || sendingRef.current) return;
+    if (!session || !destination || !depositable || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
     setError(null);
@@ -80,27 +79,20 @@ export default function ConfirmScreen() {
       // network, a double tap or a retry can never pay twice.
       const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
 
-      // TEMPORARY: the account branch, exactly as the wire format expects it. Replaced by a
-      // real Destination (ShapID or account) once setup is rewritten in the screens phase.
       const created = await api.createDeposit(
         session.lookup.voucherToken,
-        {
-          kind: 'account',
-          name: beneficiary.name,
-          accountNumber: beneficiary.accountNumber,
-          bankId: beneficiary.bankId,
-        },
+        toApiDestination(destination),
         idempotencyKey,
       );
 
       try {
-        // Lets the launcher reopen the status screen if the app is closed now.
+        // Lets the launcher reopen the status screen if the app is closed now. Snapshots the
+        // destination as it was at Send time, so status is correct even if it changes later.
         await saveActiveDeposit({
           depositId: created.id,
           reference: created.reference,
           startedAt: Date.now(),
-          bankId: beneficiary.bankId,
-          accountLast4: lastFour(beneficiary.accountNumber),
+          destination,
         });
       } catch {
         // The deposit exists either way; resume-after-close is a nicety.
@@ -160,17 +152,11 @@ export default function ConfirmScreen() {
         <View
           style={styles.paidInto}
           accessible
-          accessibilityLabel={confirm.paidIntoSpoken(
-            beneficiary.name,
-            bank,
-            lastFour(beneficiary.accountNumber),
-          )}
+          accessibilityLabel={confirm.paidIntoSpoken(primary, spokenOneLine)}
         >
           <Text style={styles.rowLabel}>{confirm.paidInto}</Text>
-          <Text style={styles.holder}>{beneficiary.name}</Text>
-          <Text style={styles.rowValue}>
-            {bank} · {masked}
-          </Text>
+          <Text style={styles.holder}>{primary}</Text>
+          <Text style={styles.rowValue}>{secondary}</Text>
         </View>
       </View>
 

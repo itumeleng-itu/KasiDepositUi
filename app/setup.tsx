@@ -13,7 +13,7 @@ import { ACCOUNT_GROUPING, validateAccountNumber } from '../src/domain/account';
 import type { BankId } from '../src/domain/banks';
 import { normaliseName, validateName } from '../src/domain/name';
 import { tickHaptic } from '../src/haptics';
-import { loadBeneficiary, saveBeneficiary } from '../src/storage/beneficiary';
+import { loadDestination, saveDestination } from '../src/storage/destination';
 import { colors, spacing, type } from '../src/theme';
 
 type Field = 'name' | 'bank' | 'account' | 'confirm';
@@ -50,9 +50,12 @@ export default function SetupScreen() {
   useEffect(() => {
     if (!isChange) return;
     let cancelled = false;
-    loadBeneficiary().then((saved) => {
+    loadDestination().then((saved) => {
       if (cancelled) return;
-      if (saved) {
+      // This form only ever produces an 'account' destination today (rewritten for ShapID in
+      // the screens phase). A 'shapId' destination can't happen yet, but if it ever did, there
+      // is nothing here to prefill it into, so the form is left blank rather than shown wrong.
+      if (saved?.kind === 'account') {
         setName(saved.name);
         setBankId(saved.bankId);
         setAccount(saved.accountNumber);
@@ -116,7 +119,8 @@ export default function SetupScreen() {
     setSaving(true);
     setSaveFailed(false);
     try {
-      await saveBeneficiary({ name: normaliseName(name), accountNumber: account, bankId });
+      const now = Date.now();
+      await saveDestination({ kind: 'account', name: normaliseName(name), accountNumber: account, bankId }, now);
       tickHaptic();
       leave();
     } catch {

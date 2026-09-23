@@ -10,8 +10,8 @@ import { Screen } from '../src/components/Screen';
 import { deposit } from '../src/copy';
 import { PIN_GROUPING, PIN_LENGTH } from '../src/domain/pin';
 import { describeError } from '../src/errorMessage';
-import { loadBeneficiary } from '../src/storage/beneficiary';
-import type { StoredBeneficiary } from '../src/storage/beneficiaryRecord';
+import { loadDestination } from '../src/storage/destination';
+import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
 import { colors, PIN_MAX_FONT_SCALE, spacing, type } from '../src/theme';
 import { startVoucherSession } from '../src/voucherSession';
 
@@ -21,7 +21,7 @@ import { startVoucherSession } from '../src/voucherSession';
  * opaque voucher token moves on.
  */
 export default function DepositScreen() {
-  const [beneficiary, setBeneficiary] = useState<StoredBeneficiary | null>(null);
+  const [destination, setDestination] = useState<StoredDestinationRecord | null>(null);
   const [digits, setDigits] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,9 +31,9 @@ export default function DepositScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      loadBeneficiary().then((saved) => {
+      loadDestination().then((saved) => {
         if (cancelled) return;
-        if (saved) setBeneficiary(saved);
+        if (saved) setDestination(saved);
         else router.replace('/setup');
       });
       return () => {
@@ -65,9 +65,9 @@ export default function DepositScreen() {
 
   return (
     <Screen>
-      {beneficiary ? (
+      {destination ? (
         <DestinationLine
-          beneficiary={beneficiary}
+          destination={destination}
           onChange={() =>
             router.push({ pathname: '/setup', params: { mode: 'change', returnTo: 'deposit' } })
           }

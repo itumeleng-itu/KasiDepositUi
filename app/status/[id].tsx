@@ -11,8 +11,8 @@ import { Icon } from '../../src/components/Icon';
 import { Screen } from '../../src/components/Screen';
 import { StepIndicator } from '../../src/components/StepIndicator';
 import { common, nextStatusAction, statusCopy, status } from '../../src/copy';
-import { maskAccountNumber } from '../../src/domain/account';
 import { bankName } from '../../src/domain/banks';
+import { maskedIdentifier } from '../../src/domain/destination';
 import { successHaptic } from '../../src/haptics';
 import {
   createPoller,
@@ -22,7 +22,7 @@ import {
   STILL_PROCESSING_AFTER_MS,
 } from '../../src/polling';
 import { clearActiveDeposit, loadActiveDeposit } from '../../src/storage/activeDeposit';
-import { loadBeneficiary } from '../../src/storage/beneficiary';
+import { loadDestination } from '../../src/storage/destination';
 import { colors, size, spacing, type } from '../../src/theme';
 
 interface Origin {
@@ -46,15 +46,14 @@ export default function StatusScreen() {
   // Where the money went and when we started. Falls back to the saved details, then to "now".
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadActiveDeposit(), loadBeneficiary()])
+    Promise.all([loadActiveDeposit(), loadDestination()])
       .then(([active, saved]) => {
         if (cancelled) return;
         const mine = active && active.depositId === id ? active : null;
-        const destination = mine
-          ? { bankName: bankName(mine.bankId), maskedAccount: maskAccountNumber(mine.accountLast4) }
-          : saved
-            ? { bankName: bankName(saved.bankId), maskedAccount: maskAccountNumber(saved.accountNumber) }
-            : null;
+        const found = mine ? mine.destination : saved;
+        const destination = found
+          ? { bankName: bankName(found.bankId), maskedAccount: maskedIdentifier(found) }
+          : null;
         const startedAt = mine ? mine.startedAt : Date.now();
         setSlow(Date.now() - startedAt >= STILL_PROCESSING_AFTER_MS);
         setOrigin({ startedAt, reference: mine ? mine.reference : null, destination });
