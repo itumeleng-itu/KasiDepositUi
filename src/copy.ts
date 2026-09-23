@@ -96,7 +96,6 @@ export const status = {
   makeAnother: 'Make another deposit',
   tryAgain: common.tryAgain,
   tryAgainLater: 'Try again later',
-  changeAccount: 'Change account details',
   reference: (ref: string) => `Reference: ${ref}`,
   steps: { checked: 'Checked', sent: 'Sent', arrived: 'Arrived' },
   stepDone: 'done',
