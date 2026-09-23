@@ -1,26 +1,34 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type TextInput } from 'react-native';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 
+import { api } from '../src/api/client';
+import { isApiError } from '../src/api/errors';
 import { BankList } from '../src/components/BankList';
 import { Button } from '../src/components/Button';
-import { DigitsField } from '../src/components/DigitsField';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
 import { setup } from '../src/copy';
-import { ACCOUNT_GROUPING, validateAccountNumber } from '../src/domain/account';
 import type { BankId } from '../src/domain/banks';
-import { normaliseName, validateName } from '../src/domain/name';
+import { bankName } from '../src/domain/banks';
+import { displayShapId, parseShapId, withBankSuffix } from '../src/domain/shapId';
+import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
 import { loadDestination, saveDestination } from '../src/storage/destination';
 import { colors, spacing, type } from '../src/theme';
 
-type Field = 'name' | 'bank' | 'account' | 'confirm';
+/** What is being confirmed after a successful resolveShapId, before the user says Yes or No. */
+interface Resolved {
+  shapId: string;
+  shapName: string;
+  bankId: BankId;
+}
 
 /**
- * First run, and "Change details" (?mode=change&returnTo=deposit|confirm).
- * Errors appear only for fields the user has already left, never on an untouched form.
+ * First run, and "Change details" (?mode=change&returnTo=deposit|confirm). One field: the
+ * cellphone number is looked up on PayShap and the user confirms the name that comes back
+ * before anything is saved — never the other way around.
  */
 export default function SetupScreen() {
   const params = useLocalSearchParams<{ mode?: string; returnTo?: string }>();
@@ -28,39 +36,31 @@ export default function SetupScreen() {
   const returnTo = params.returnTo === 'confirm' ? '/confirm' : '/deposit';
 
   const [ready, setReady] = useState(!isChange);
-  const [name, setName] = useState('');
-  const [bankId, setBankId] = useState<BankId | null>(null);
-  const [account, setAccount] = useState('');
-  const [confirmAccount, setConfirmAccount] = useState('');
-  const [touched, setTouched] = useState<Record<Field, boolean>>({
-    name: false,
-    bank: false,
-    account: false,
-    confirm: false,
-  });
-  const [accountTooLong, setAccountTooLong] = useState(false);
+  const [rawInput, setRawInput] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  // The unqualified number a shapid_ambiguous came back for, so a bank choice can be attached to
+  // the number the user actually typed rather than to whatever is in the field by then.
+  const [ambiguousBase, setAmbiguousBase] = useState<string | null>(null);
+  const resolvingRef = useRef(false);
+
+  const [confirming, setConfirming] = useState<Resolved | null>(null);
+  const confirmingRef = useRef<Resolved | null>(null);
+  confirmingRef.current = confirming;
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const savingRef = useRef(false);
 
-  const accountRef = useRef<TextInput>(null);
-  const confirmRef = useRef<TextInput>(null);
-
-  // Change mode starts from what is saved.
+  // Change mode starts from what is saved. A destination of the dormant 'account' kind cannot
+  // be prefilled into this field; the form is simply left blank rather than shown wrong.
   useEffect(() => {
     if (!isChange) return;
     let cancelled = false;
     loadDestination().then((saved) => {
       if (cancelled) return;
-      // This form only ever produces an 'account' destination today (rewritten for ShapID in
-      // the screens phase). A 'shapId' destination can't happen yet, but if it ever did, there
-      // is nothing here to prefill it into, so the form is left blank rather than shown wrong.
-      if (saved?.kind === 'account') {
-        setName(saved.name);
-        setBankId(saved.bankId);
-        setAccount(saved.accountNumber);
-        setConfirmAccount(saved.accountNumber);
-      }
+      if (saved?.kind === 'shapId') setRawInput(displayShapId(saved.shapId));
       setReady(true);
     });
     return () => {
@@ -68,40 +68,22 @@ export default function SetupScreen() {
     };
   }, [isChange]);
 
-  const touch = (field: Field) => setTouched((prev) => ({ ...prev, [field]: true }));
+  // Back on the confirmation panel is a choice, not a dismissal: it behaves as "No". Reads the
+  // ref rather than `confirming` so the listener is registered once, not re-subscribed on every
+  // state change.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!confirmingRef.current) return false;
+      setConfirming(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, []);
 
-  const nameError = validateName(name);
-  const accountError = validateAccountNumber(account);
-  const confirmError =
-    confirmAccount.length === 0 ? 'required' : confirmAccount !== account ? 'mismatch' : null;
-
-  const valid = nameError === null && bankId !== null && accountError === null && confirmError === null;
-
-  const unmet =
-    nameError !== null
-      ? setup.unmet.name
-      : bankId === null
-        ? setup.unmet.bank
-        : accountError !== null
-          ? setup.unmet.account
-          : confirmError !== null
-            ? setup.unmet.confirm
-            : null;
-
-  const nameMessage = touched.name && nameError ? setup.nameError[nameError] : null;
-  const bankMessage = touched.bank && bankId === null ? setup.bankError : null;
-  const accountMessage = accountTooLong
-    ? setup.accountError.too_long
-    : touched.account && accountError
-      ? setup.accountError[accountError]
-      : null;
-  const confirmMessage = !touched.confirm
-    ? null
-    : confirmError === 'required'
-      ? setup.confirmRequired
-      : confirmError === 'mismatch'
-        ? setup.confirmMismatch
-        : null;
+  const parsed = parseShapId(rawInput);
+  const valid = parsed.ok;
+  const fieldError = touched && !parsed.ok ? setup.parseError[parsed.reason] : resolveError;
+  const unmet = !valid && !parsed.ok ? setup.unmet[parsed.reason] : null;
 
   function leave() {
     if (!isChange) {
@@ -113,14 +95,50 @@ export default function SetupScreen() {
     }
   }
 
-  async function onSave() {
-    if (!valid || bankId === null || savingRef.current) return;
+  async function attemptResolve(shapId: string) {
+    if (resolvingRef.current) return;
+    resolvingRef.current = true;
+    setResolving(true);
+    setResolveError(null);
+    try {
+      const resolved = await api.resolveShapId(shapId);
+      setConfirming({ shapId, shapName: resolved.shapName, bankId: resolved.bankId });
+      setAmbiguousBase(null);
+    } catch (caught) {
+      setResolveError(describeError(caught, { moneyMayHaveMoved: false }));
+      // A genuine recovery path, not a dead end: remember the number so a bank choice attaches
+      // to it, and reveal the picker.
+      setAmbiguousBase(
+        isApiError(caught) && caught.kind === 'business' && caught.reason === 'shapid_ambiguous'
+          ? shapId
+          : null,
+      );
+    } finally {
+      resolvingRef.current = false;
+      setResolving(false);
+    }
+  }
+
+  function onContinue() {
+    if (!parsed.ok || resolvingRef.current) return;
+    attemptResolve(parsed.shapId);
+  }
+
+  function onConfirmNo() {
+    // Returns to the form with the number still in the field, ready to edit.
+    setConfirming(null);
+  }
+
+  async function onConfirmYes() {
+    if (!confirming || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setSaveFailed(false);
     try {
-      const now = Date.now();
-      await saveDestination({ kind: 'account', name: normaliseName(name), accountNumber: account, bankId }, now);
+      await saveDestination(
+        { kind: 'shapId', shapId: confirming.shapId, shapName: confirming.shapName, bankId: confirming.bankId },
+        Date.now(),
+      );
       tickHaptic();
       leave();
     } catch {
@@ -137,83 +155,77 @@ export default function SetupScreen() {
 
   if (!ready) return <View style={styles.blank} />;
 
+  if (confirming) {
+    return (
+      <Screen>
+        <Text accessibilityRole="header" style={styles.title}>
+          {setup.confirmTitle}
+        </Text>
+        <View style={styles.confirmBlock}>
+          <Text style={styles.confirmName}>{confirming.shapName}</Text>
+          <Text style={styles.confirmBank}>{bankName(confirming.bankId)}</Text>
+        </View>
+        <View style={styles.actions}>
+          <Button
+            label={setup.confirmYes}
+            loadingLabel={setup.saving}
+            onPress={onConfirmYes}
+            loading={saving}
+          />
+          <Button variant="secondary" label={setup.confirmNo} onPress={onConfirmNo} disabled={saving} />
+        </View>
+        {saveFailed ? <InlineError message={setup.saveFailed} /> : null}
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <Text accessibilityRole="header" style={styles.title}>
         {isChange ? setup.titleChange : setup.titleFirstRun}
       </Text>
-      <Text style={styles.body}>{setup.intro}</Text>
+      <Text style={styles.body}>{setup.helper}</Text>
 
       <TextField
-        label={setup.nameLabel}
-        value={name}
-        onChangeText={setName}
-        error={nameMessage}
-        textContentType="name"
-        autoCapitalize="words"
-        autoComplete="name"
-        returnKeyType="next"
-        submitBehavior="submit"
-        onSubmitEditing={() => accountRef.current?.focus()}
-        onBlur={() => {
-          setName(normaliseName(name));
-          touch('name');
+        label={setup.numberLabel}
+        value={rawInput}
+        onChangeText={(text) => {
+          setRawInput(text);
+          setResolveError(null);
+          setAmbiguousBase(null);
         }}
-      />
-
-      <BankList
-        label={setup.bankLabel}
-        selected={bankId}
-        onSelect={(id) => {
-          setBankId(id);
-          touch('bank');
-        }}
-        error={bankMessage}
-      />
-
-      <DigitsField
-        label={setup.accountLabel}
-        inputRef={accountRef}
-        digits={account}
-        grouping={ACCOUNT_GROUPING}
-        onChangeDigits={(digits) => {
-          setAccount(digits);
-          setAccountTooLong(false);
-        }}
-        onPasteRejected={() => setAccountTooLong(true)}
-        error={accountMessage}
-        returnKeyType="next"
-        submitBehavior="submit"
-        onSubmitEditing={() => confirmRef.current?.focus()}
-        onFocus={() => touch('bank')}
-        onBlur={() => touch('account')}
-      />
-
-      <DigitsField
-        label={setup.confirmAccountLabel}
-        inputRef={confirmRef}
-        digits={confirmAccount}
-        grouping={ACCOUNT_GROUPING}
-        onChangeDigits={setConfirmAccount}
-        error={confirmMessage}
+        error={fieldError}
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        textContentType="telephoneNumber"
+        autoCorrect={false}
+        maxLength={40}
         returnKeyType="done"
-        onBlur={() => touch('confirm')}
+        onSubmitEditing={onContinue}
+        onBlur={() => setTouched(true)}
       />
+
+      {ambiguousBase ? (
+        <BankList
+          label={setup.bankPickerLabel}
+          selected={null}
+          onSelect={(bank) => attemptResolve(withBankSuffix(ambiguousBase, bank))}
+        />
+      ) : null}
 
       <View style={styles.actions}>
         <Button
-          label={setup.save}
-          loadingLabel={setup.saving}
-          onPress={onSave}
+          label={setup.continue}
+          loadingLabel={setup.checking}
+          onPress={onContinue}
           disabled={!valid}
-          loading={saving}
+          loading={resolving}
         />
         {!valid && unmet ? (
           <Text style={styles.unmet} accessibilityLiveRegion="polite">
             {unmet}
           </Text>
         ) : null}
-        {saveFailed ? <InlineError message={setup.saveFailed} /> : null}
         {isChange ? <Button variant="secondary" label={setup.cancel} onPress={onCancel} /> : null}
       </View>
 
@@ -229,4 +241,7 @@ const styles = StyleSheet.create({
   actions: { gap: spacing.md },
   unmet: { ...type.label, color: colors.inkMuted, textAlign: 'center' },
   note: { ...type.body, color: colors.inkMuted },
+  confirmBlock: { gap: spacing.xs },
+  confirmName: { ...type.title, color: colors.ink },
+  confirmBank: { ...type.body, color: colors.inkMuted },
 });

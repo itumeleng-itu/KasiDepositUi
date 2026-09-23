@@ -5,8 +5,7 @@
  */
 import { MIN_VOUCHER_CENTS } from './domain/fees';
 import { formatRand, spokenAmounts, spokenRand, type Cents } from './domain/money';
-import type { AccountError } from './domain/account';
-import type { NameError } from './domain/name';
+import type { ShapIdFormatReason } from './domain/shapId';
 import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
@@ -31,37 +30,30 @@ export const common = {
 export const setup = {
   titleFirstRun: 'Where should your money go?',
   titleChange: 'Change where your money goes',
-  intro: 'Tell us the bank account that deposits should be paid into.',
-  nameLabel: 'Account holder name',
-  bankLabel: 'Bank',
-  accountLabel: 'Account number',
-  confirmAccountLabel: 'Confirm account number',
-  save: 'Save details',
+  helper: 'Your cellphone number, as registered with your bank for PayShap.',
+  numberLabel: 'Cellphone number',
+  bankPickerLabel: 'Bank',
+  continue: 'Continue',
+  checking: 'Checking your number',
   cancel: common.cancel,
   privacyNote: 'Saved on this phone only. We never ask for your banking PIN or password.',
   saveFailed: "We couldn't save your details on this phone. Try again.",
   saving: 'Saving',
-  nameError: {
-    required: 'Enter the name on the bank account.',
-    too_short: 'The name must be at least 2 letters.',
-    too_long: 'The name must be 60 characters or fewer.',
-    invalid_chars: 'Use letters, spaces, hyphens and apostrophes only.',
-  } satisfies Record<NameError, string>,
-  bankError: 'Choose your bank.',
-  accountError: {
-    required: 'Enter your account number.',
-    too_short: 'An account number has at least 7 digits.',
-    too_long: 'An account number has at most 11 digits.',
-  } satisfies Record<AccountError, string>,
-  confirmMismatch: "The account numbers don't match.",
-  confirmRequired: 'Enter your account number again.',
-  /** Shown under the disabled Save button: the first unmet requirement. */
+  /** Per-field error, shown once the field has been left. Doubles as the format failure message. */
+  parseError: {
+    empty: 'Enter your cellphone number.',
+    format: "That doesn't look like a South African mobile number.",
+    unknown_bank: "We don't recognise that bank. Choose one from the list.",
+  } satisfies Record<ShapIdFormatReason, string>,
+  /** Shown under the disabled Continue button, even before the field has been touched. */
   unmet: {
-    name: 'Enter the name on the bank account.',
-    bank: 'Choose your bank.',
-    account: 'Enter a valid account number.',
-    confirm: 'Enter your account number again, the same way.',
-  },
+    empty: 'Enter your cellphone number.',
+    format: 'Enter a valid cellphone number.',
+    unknown_bank: 'Choose a bank you recognise.',
+  } satisfies Record<ShapIdFormatReason, string>,
+  confirmTitle: 'Is this you?',
+  confirmYes: 'Yes, save this',
+  confirmNo: 'No, change number',
 } as const;
 
 export const deposit = {
