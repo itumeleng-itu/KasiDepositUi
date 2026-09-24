@@ -4,15 +4,21 @@
 
 ```powershell
 cd D:\KasiDeposit\KasiDepositUi
+cp .env.example .env      # first time only; .env itself is gitignored
 npx expo start
 ```
 
 Open **Expo Go** on an Android phone on the same Wi-Fi, scan the QR code (or choose *Enter URL
 manually* and type `exp://<your PC's Wi-Fi IP>:8081`). No Expo account is needed for LAN mode.
 
-The app runs on the **fake API** (`.env` has `EXPO_PUBLIC_USE_FAKE_API=true`). Each call is logged
-in the terminal running Metro as `[fake-api] ...`. The log never contains the PIN or the ShapID,
-only the scenario digit. After changing `.env`, restart with `npx expo start --clear`.
+The default `.env` runs the app on the **fake API** (`EXPO_PUBLIC_USE_FAKE_API=true`). Each call is
+logged in the terminal running Metro as `[fake-api] ...`. The log never contains the PIN or the
+ShapID, only the scenario digit.
+
+**Changing `.env` needs more than a server restart.** `EXPO_PUBLIC_*` values are baked into the JS
+bundle once, at load time. Restart with `npx expo start --clear`, **and** fully reload the app on
+the device itself (shake for the dev menu, tap Reload; or close and reopen it) — otherwise it keeps
+running on the old bundle and nothing appears to have changed, which looks like a bug but isn't.
 
 Checks that need no phone:
 
