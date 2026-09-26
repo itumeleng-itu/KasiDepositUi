@@ -23,6 +23,7 @@ import {
 } from '../../src/polling';
 import { clearActiveDeposit, loadActiveDeposit } from '../../src/storage/activeDeposit';
 import { loadDestination } from '../../src/storage/destination';
+import { loadRedemption, updateRedemptionStatus } from '../../src/storage/history';
 import { colors, size, spacing, type } from '../../src/theme';
 
 interface Origin {
@@ -43,20 +44,22 @@ export default function StatusScreen() {
   const [offline, setOffline] = useState(false);
   const [slow, setSlow] = useState(false);
 
-  // Where the money went and when we started. Falls back to the saved details, then to "now".
+  // Where the money went and when we started: the unfinished-deposit record, then this phone's
+  // history (when opened from "Your deposits"), then the saved details and "now".
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadActiveDeposit(), loadDestination()])
-      .then(([active, saved]) => {
+    Promise.all([loadActiveDeposit(), loadRedemption(id), loadDestination()])
+      .then(([active, past, saved]) => {
         if (cancelled) return;
         const mine = active && active.depositId === id ? active : null;
-        const found = mine ? mine.destination : saved;
+        const found = mine ? mine.destination : past ? past.destination : saved;
         const destination = found
           ? { bankName: bankName(found.bankId), maskedAccount: maskedIdentifier(found) }
           : null;
-        const startedAt = mine ? mine.startedAt : Date.now();
+        const startedAt = mine ? mine.startedAt : past ? past.sentAt : Date.now();
+        const reference = mine ? mine.reference : past ? past.reference : null;
         setSlow(Date.now() - startedAt >= STILL_PROCESSING_AFTER_MS);
-        setOrigin({ startedAt, reference: mine ? mine.reference : null, destination });
+        setOrigin({ startedAt, reference, destination });
       })
       .catch(() => {
         if (!cancelled) setOrigin({ startedAt: Date.now(), reference: null, destination: null });
@@ -102,6 +105,14 @@ export default function StatusScreen() {
   }, [id, startedAt]);
 
   const terminal = deposit !== null && isTerminal(deposit.status);
+
+  // Keep "Your deposits" in step with what this screen learns. Only when something visible moved.
+  const latestStatus = deposit?.status;
+  const latestReason = deposit?.failureReason;
+  useEffect(() => {
+    // Keyed on the status, not the object: every poll brings a new object with the same news.
+    if (deposit !== null) updateRedemptionStatus(deposit);
+  }, [latestStatus, latestReason]);
 
   // "Still processing" starts at 90 s even if no poll lands to tell us so.
   useEffect(() => {

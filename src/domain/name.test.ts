@@ -1,4 +1,4 @@
-import { normaliseName, validateName } from './name';
+import { FULL_NAMES_MAX, normaliseName, validateFullNames, validateName } from './name';
 
 describe('normaliseName', () => {
   it('trims and collapses internal whitespace', () => {
@@ -25,5 +25,26 @@ describe('validateName', () => {
     ['a'.repeat(61), 'too_long'],
   ])('validates %j -> %s', (input, expected) => {
     expect(validateName(input)).toBe(expected);
+  });
+});
+
+describe('validateFullNames', () => {
+  it.each(['Thabo Mokoena', 'Nomvula Grace Dlamini', "Zoë O'Neill-Botha", '  Lerato   Mahlangu  '])(
+    'accepts %s',
+    (names) => {
+      expect(validateFullNames(names)).toBeNull();
+    },
+  );
+
+  it.each([
+    ['', 'required'],
+    ['   ', 'required'],
+    ['Thabo', 'one_name'],
+    ['Thabo -', 'one_name'],
+    ['Thabo M0koena', 'invalid_chars'],
+    ['Thabo Mokoena!', 'invalid_chars'],
+    [`Thabo ${'a'.repeat(FULL_NAMES_MAX)}`, 'too_long'],
+  ])('rejects %j as %s', (names, error) => {
+    expect(validateFullNames(names)).toBe(error);
   });
 });

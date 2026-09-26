@@ -3,19 +3,22 @@ import { useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { api } from '../src/api/client';
+import type { RegisteredUser } from '../src/api/types';
 import { isApiError } from '../src/api/errors';
 import { BankList } from '../src/components/BankList';
 import { Button } from '../src/components/Button';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
-import { setup } from '../src/copy';
+import { register, setup } from '../src/copy';
 import type { BankId } from '../src/domain/banks';
 import { bankName } from '../src/domain/banks';
 import { displayShapId, parseShapId, withBankSuffix } from '../src/domain/shapId';
 import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
+import { clearRegistration, currentRegistration } from '../src/registrationSession';
 import { loadDestination, saveDestination } from '../src/storage/destination';
+import { saveUser } from '../src/storage/user';
 import { colors, spacing, type } from '../src/theme';
 
 /** What is being confirmed after a successful resolveShapId, before the user says Yes or No. */
@@ -29,10 +32,16 @@ interface Resolved {
  * First run, and "Change details" (?mode=change&returnTo=deposit|confirm). One field: the
  * cellphone number is looked up on PayShap and the user confirms the name that comes back
  * before anything is saved — never the other way around.
+ *
+ * Registering (?mode=register) uses the same check: the number typed on the register screen is
+ * looked up straight away, and "Yes" registers the user and saves the destination together.
  */
 export default function SetupScreen() {
   const params = useLocalSearchParams<{ mode?: string; returnTo?: string }>();
   const isChange = params.mode === 'change';
+  const isRegister = params.mode === 'register';
+  // Read once: the register screen's details, in memory. Missing after a reload.
+  const [registration] = useState(currentRegistration);
   const returnTo = params.returnTo === 'confirm' ? '/confirm' : '/deposit';
 
   const [ready, setReady] = useState(!isChange);
@@ -51,6 +60,10 @@ export default function SetupScreen() {
   confirmingRef.current = confirming;
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  /** Registering was refused: the message, and whether the fix is on the register screen. */
+  const [registerError, setRegisterError] = useState<{ message: string; editDetails: boolean } | null>(
+    null,
+  );
   const savingRef = useRef(false);
 
   // Change mode starts from what is saved. A destination of the dormant 'account' kind cannot
@@ -67,6 +80,18 @@ export default function SetupScreen() {
       cancelled = true;
     };
   }, [isChange]);
+
+  // Register mode starts by checking the number already typed on the register screen.
+  useEffect(() => {
+    if (!isRegister) return;
+    if (!registration) {
+      router.replace('/register');
+      return;
+    }
+    setRawInput(displayShapId(registration.shapId));
+    attemptResolve(registration.shapId);
+    // Once, on arrival: the registration read at mount never changes.
+  }, []);
 
   // Back on the confirmation panel is a choice, not a dismissal: it behaves as "No". Reads the
   // ref rather than `confirming` so the listener is registered once, not re-subscribed on every
@@ -127,6 +152,39 @@ export default function SetupScreen() {
   function onConfirmNo() {
     // Returns to the form with the number still in the field, ready to edit.
     setConfirming(null);
+    setRegisterError(null);
+  }
+
+  /** Registers, then saves who and where together. Leaves only once both are on the phone. */
+  async function registerAndSave(resolved: Resolved): Promise<boolean> {
+    if (!registration) return false;
+    let user: RegisteredUser;
+    try {
+      user = await api.registerUser({
+        fullNames: registration.fullNames,
+        idNumber: registration.idNumber,
+        shapId: resolved.shapId,
+      });
+    } catch (caught) {
+      const reason = isApiError(caught) && caught.kind === 'business' ? caught.reason : undefined;
+      setRegisterError({
+        message: describeError(caught, { moneyMayHaveMoved: false }),
+        // The names or ID number are what's wrong: they are fixed on the register screen.
+        editDetails:
+          reason === 'id_number_invalid' ||
+          reason === 'id_number_under_age' ||
+          reason === 'id_verification_failed' ||
+          reason === 'id_number_already_registered',
+      });
+      return false;
+    }
+    await saveUser({ ...user, registeredAt: Date.now() });
+    await saveDestination(
+      { kind: 'shapId', shapId: resolved.shapId, shapName: resolved.shapName, bankId: resolved.bankId },
+      Date.now(),
+    );
+    clearRegistration();
+    return true;
   }
 
   async function onConfirmYes() {
@@ -134,7 +192,20 @@ export default function SetupScreen() {
     savingRef.current = true;
     setSaving(true);
     setSaveFailed(false);
+    setRegisterError(null);
     try {
+      if (isRegister) {
+        if (!(await registerAndSave(confirming))) {
+          savingRef.current = false;
+          setSaving(false);
+          return;
+        }
+        tickHaptic();
+        // Nothing to go back to: the register screen held the ID number and must not stay mounted.
+        if (router.canDismiss()) router.dismissAll();
+        router.replace('/deposit');
+        return;
+      }
       await saveDestination(
         { kind: 'shapId', shapId: confirming.shapId, shapName: confirming.shapName, bankId: confirming.bankId },
         Date.now(),
@@ -167,13 +238,22 @@ export default function SetupScreen() {
         </View>
         <View style={styles.actions}>
           <Button
-            label={setup.confirmYes}
-            loadingLabel={setup.saving}
+            label={isRegister ? setup.confirmYesRegister : setup.confirmYes}
+            loadingLabel={isRegister ? register.registering : setup.saving}
             onPress={onConfirmYes}
             loading={saving}
           />
           <Button variant="secondary" label={setup.confirmNo} onPress={onConfirmNo} disabled={saving} />
+          {registerError?.editDetails ? (
+            <Button
+              variant="text"
+              label={register.editDetails}
+              onPress={() => router.back()}
+              disabled={saving}
+            />
+          ) : null}
         </View>
+        {registerError ? <InlineError message={registerError.message} /> : null}
         {saveFailed ? <InlineError message={setup.saveFailed} /> : null}
       </Screen>
     );
@@ -182,7 +262,7 @@ export default function SetupScreen() {
   return (
     <Screen>
       <Text accessibilityRole="header" style={styles.title}>
-        {isChange ? setup.titleChange : setup.titleFirstRun}
+        {isRegister ? setup.titleRegister : isChange ? setup.titleChange : setup.titleFirstRun}
       </Text>
       <Text style={styles.body}>{setup.helper}</Text>
 

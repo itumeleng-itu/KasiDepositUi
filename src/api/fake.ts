@@ -25,18 +25,32 @@
  * Idempotency and the "voucher already used" check are remembered in memory only, like a real
  * server's database would be for the life of this process.
  *
- * Logs never contain the PIN or the ShapID: only the scenario digit.
+ * Registration scenarios (the ID number's sequence digits, positions 7-10 of 13):
+ *   8001010000081  sequence 0000  id_verification_failed
+ *   8001010001089  sequence 0001  id_number_already_registered
+ *   8001010002087  sequence 0002  shapid_name_mismatch
+ *   8001010003085  sequence 0003  network error (simulates no signal)
+ *   any other valid adult ID (e.g. 8001015009087)  registered
+ *
+ * `listMyDeposits` returns the deposits created since the app started: the fake has no
+ * database, so after a reload the app's own saved history is what the user sees.
+ *
+ * Logs never contain the PIN, the ShapID or the ID number: only the scenario digits.
  */
 import { isBankId } from '../domain/banks';
 import { calculatePayout, FAKE_FLAT_FEE_CENTS, MIN_VOUCHER_CENTS } from '../domain/fees';
+import { parseSaId } from '../domain/saId';
 import { formatRand, type Cents } from '../domain/money';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import type {
   ClearingFailure,
   Deposit,
+  DepositRecord,
   DepositStatus,
   Destination,
+  RegisteredUser,
+  Registration,
   ResolvedShapId,
   VoucherFailure,
   VoucherLookup,
@@ -137,6 +151,8 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
   const keyByToken = new Map<string, string>();
   /** last status logged per deposit, so polling logs transitions rather than every second */
   const lastLoggedStatus = new Map<string, DepositStatus>();
+  /** deposit id -> where it was sent, for listMyDeposits; newest last */
+  const sentTo = new Map<string, Destination>();
 
   const randomChars = (radix: 16 | 36, length: number) =>
     Math.floor(random() * radix ** length)
@@ -234,7 +250,7 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
 
     async createDeposit(
       voucherToken: string,
-      _destination: Destination,
+      destination: Destination,
       idempotencyKey: string,
     ): Promise<Deposit> {
       await sleep(delayMs());
@@ -268,6 +284,7 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       const id = `${DEPOSIT_PREFIX}_${token.scenario}_${payoutCents}_${createdAt.toString(36)}_${code}`;
 
       depositByKey.set(idempotencyKey, id);
+      sentTo.set(id, destination);
       keyByToken.set(voucherToken, idempotencyKey);
       log(
         `[fake-api] createDeposit scenario ${token.scenario} -> new deposit KD-${code} ` +
@@ -279,6 +296,68 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
     async getDepositStatus(id: string): Promise<Deposit> {
       await sleep(delayMs());
       return viewDeposit(id);
+    },
+
+    async registerUser(registration: Registration): Promise<RegisteredUser> {
+      await sleep(delayMs());
+
+      const parsed = parseSaId(registration.idNumber, new Date(now()));
+      if (!parsed.ok) {
+        const reason = parsed.reason === 'under_age' ? 'id_number_under_age' : 'id_number_invalid';
+        log(`[fake-api] registerUser -> ${reason}`);
+        throw ApiError.business(reason);
+      }
+      const sequence = parsed.idNumber.slice(6, 10);
+      if (sequence === '0000') {
+        log('[fake-api] registerUser sequence 0000 -> id_verification_failed');
+        throw ApiError.business('id_verification_failed');
+      }
+      if (sequence === '0001') {
+        log('[fake-api] registerUser sequence 0001 -> id_number_already_registered');
+        throw ApiError.business('id_number_already_registered');
+      }
+      if (sequence === '0002') {
+        log('[fake-api] registerUser sequence 0002 -> shapid_name_mismatch');
+        throw ApiError.business('shapid_name_mismatch');
+      }
+      if (sequence === '0003') {
+        log('[fake-api] registerUser sequence 0003 -> network error');
+        throw ApiError.network('Simulated no signal');
+      }
+
+      log('[fake-api] registerUser -> registered');
+      return {
+        userId: `fku_${randomChars(36, 8)}`,
+        accessToken: `fkt_${randomChars(36, 8)}${randomChars(36, 8)}`,
+        fullNames: registration.fullNames.replace(/\s+/g, ' ').trim(),
+      };
+    },
+
+    async listMyDeposits(): Promise<DepositRecord[]> {
+      await sleep(delayMs());
+      const records: DepositRecord[] = [];
+      for (const [id, destination] of sentTo) {
+        const parts = decodeDepositId(id);
+        if (!parts) continue;
+        const [, suffix] = destination.kind === 'shapId' ? destination.shapId.split('@') : [];
+        records.push({
+          ...viewDeposit(id),
+          valueCents: parts.payoutCents + FAKE_FLAT_FEE_CENTS,
+          feeCents: FAKE_FLAT_FEE_CENTS,
+          createdAt: parts.createdAt,
+          destination:
+            destination.kind === 'shapId'
+              ? {
+                  kind: 'shapId',
+                  shapId: destination.shapId,
+                  shapName: 'M. Mothiba',
+                  bankId: suffix !== undefined && isBankId(suffix) ? suffix : 'capitec',
+                }
+              : destination,
+        });
+      }
+      log(`[fake-api] listMyDeposits -> ${records.length} deposit(s)`);
+      return records.reverse();
     },
   };
 }

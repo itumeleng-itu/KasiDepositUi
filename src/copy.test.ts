@@ -1,8 +1,10 @@
 import {
   ALL_CLEARING_FAILURES,
   ALL_IDENTITY_FAILURES,
+  ALL_REGISTRATION_FAILURES,
   ALL_VOUCHER_FAILURES,
   failureMessage,
+  formatSentAt,
   isClearingFailure,
   nextStatusAction,
   SAFE_MONEY,
@@ -75,9 +77,19 @@ describe('statusCopy: screen readers and unknown destinations', () => {
 });
 
 describe('the reassurance rule (§5): enforced as a loop, not per reason', () => {
-  it('lists every reason exactly once across the three groups', () => {
-    const all = [...ALL_IDENTITY_FAILURES, ...ALL_CLEARING_FAILURES, ...ALL_VOUCHER_FAILURES];
+  it('lists every reason exactly once across the four groups', () => {
+    const all = [
+      ...ALL_IDENTITY_FAILURES,
+      ...ALL_CLEARING_FAILURES,
+      ...ALL_VOUCHER_FAILURES,
+      ...ALL_REGISTRATION_FAILURES,
+    ];
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it.each(ALL_REGISTRATION_FAILURES)('%s never says the money is safe: no money is involved', (reason) => {
+    expect(isClearingFailure(reason)).toBe(false);
+    expect(failureMessage(reason)).not.toContain('safe');
   });
 
   it.each(ALL_IDENTITY_FAILURES)('%s never says the money is safe: nothing has moved yet', (reason) => {
@@ -152,5 +164,15 @@ describe('nextStatusAction', () => {
     for (const reason of [...ALL_CLEARING_FAILURES, ...ALL_VOUCHER_FAILURES]) {
       expect(['try_again', 'try_later', 'make_another']).toContain(nextStatusAction(reason));
     }
+  });
+});
+
+describe('formatSentAt', () => {
+  it('reads as day, short month, year and 24-hour local time', () => {
+    expect(formatSentAt(new Date(2026, 8, 26, 14, 5).getTime())).toBe('26 Sep 2026, 14:05');
+  });
+
+  it('pads the time but not the day', () => {
+    expect(formatSentAt(new Date(2026, 0, 3, 7, 9).getTime())).toBe('3 Jan 2026, 07:09');
   });
 });

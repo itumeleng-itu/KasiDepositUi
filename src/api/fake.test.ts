@@ -299,3 +299,70 @@ describe('randomDelayMs', () => {
     expect(randomDelayMs(() => 0.5)).toBeLessThanOrEqual(900);
   });
 });
+
+describe('fake API: registerUser scenarios', () => {
+  const registration = (idNumber: string) => ({
+    fullNames: '  Thabo   Mokoena ',
+    idNumber,
+    shapId: '+27821234560',
+  });
+
+  function registeringSetup() {
+    const s = setup();
+    s.clock.now = Date.UTC(2026, 8, 26);
+    return s;
+  }
+
+  it('registers a valid adult ID, with a token and tidied names', async () => {
+    const { api, logs } = registeringSetup();
+    const user = await api.registerUser(registration('8001015009087'));
+    expect(user.accessToken).toMatch(/^fkt_/);
+    expect(user.userId).toMatch(/^fku_/);
+    expect(user.fullNames).toBe('Thabo Mokoena');
+    expect(logs.join('\n')).not.toContain('8001015009087');
+  });
+
+  it.each([
+    ['8001010000081', 'id_verification_failed'],
+    ['8001010001089', 'id_number_already_registered'],
+    ['8001010002087', 'shapid_name_mismatch'],
+    ['8001015009088', 'id_number_invalid'],
+    ['0809275001083', 'id_number_under_age'],
+  ])('%s -> %s', async (id, reason) => {
+    const { api } = registeringSetup();
+    expect(await rejection(api.registerUser(registration(id)))).toMatchObject({
+      kind: 'business',
+      reason,
+    });
+  });
+
+  it('sequence 0003 simulates no signal', async () => {
+    const { api } = registeringSetup();
+    expect(await rejection(api.registerUser(registration('8001010003085')))).toMatchObject({
+      kind: 'network',
+    });
+  });
+});
+
+describe('fake API: listMyDeposits', () => {
+  it('lists deposits created this session, newest first, with what was sent', async () => {
+    const { api, clock } = setup();
+    const shapIdDestination: Destination = { kind: 'shapId', shapId: '+27821234560@fnb' };
+
+    const first = await api.lookupVoucher(pinEndingIn(0));
+    const a = await api.createDeposit(first.voucherToken, shapIdDestination, 'key-a');
+    clock.now += 1000;
+    const second = await api.lookupVoucher(pinEndingIn(2));
+    const b = await api.createDeposit(second.voucherToken, destination, 'key-b');
+
+    const listed = await api.listMyDeposits();
+    expect(listed.map((d) => d.id)).toEqual([b.id, a.id]);
+    expect(listed[1]).toMatchObject({
+      valueCents: 50000,
+      feeCents: FAKE_FLAT_FEE_CENTS,
+      payoutCents: calculatePayout(50000, FAKE_FLAT_FEE_CENTS),
+      destination: { kind: 'shapId', shapId: '+27821234560@fnb', shapName: 'M. Mothiba', bankId: 'fnb' },
+    });
+    expect(listed[0].destination).toEqual(destination);
+  });
+});

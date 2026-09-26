@@ -5,8 +5,11 @@ import {
   destinationToWire,
   interpretErrorResponse,
   parseDeposit,
+  parseDepositHistory,
+  parseRegisteredUser,
   parseResolvedShapId,
   parseVoucherLookup,
+  registrationToWire,
 } from './wire';
 
 function thrown(fn: () => unknown): unknown {
@@ -188,5 +191,87 @@ describe('destinationToWire', () => {
         bankId: 'standard_bank',
       }),
     ).toEqual({ kind: 'account', name: 'Thabo Mokoena', account_number: '1234564417', bank: 'STANDARD_BANK' });
+  });
+});
+
+describe('401: the phone is no longer registered', () => {
+  it('is not_registered whatever the body says', () => {
+    expect(interpretErrorResponse(401, undefined)).toMatchObject({ kind: 'business', reason: 'not_registered' });
+    expect(interpretErrorResponse(401, { detail: 'Not authenticated' })).toMatchObject({
+      reason: 'not_registered',
+    });
+  });
+
+  it('reads registration reasons from the body', () => {
+    expect(interpretErrorResponse(409, { reason: 'id_number_already_registered' })).toMatchObject({
+      kind: 'business',
+      reason: 'id_number_already_registered',
+    });
+  });
+});
+
+describe('registration wire', () => {
+  it('sends snake_case', () => {
+    expect(
+      registrationToWire({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087', shapId: '+27821234567' }),
+    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087', shap_id: '+27821234567' });
+  });
+
+  it('parses the registered user', () => {
+    expect(
+      parseRegisteredUser({ user_id: 'u-1', access_token: 't', full_names: 'Thabo Mokoena', extra: 1 }),
+    ).toEqual({ userId: 'u-1', accessToken: 't', fullNames: 'Thabo Mokoena' });
+  });
+
+  it.each([
+    undefined,
+    { user_id: 'u-1', full_names: 'Thabo Mokoena' },
+    { user_id: '', access_token: 't', full_names: 'Thabo Mokoena' },
+    { user_id: 'u-1', access_token: 't', full_names: '' },
+  ])('refuses %j as our problem', (body) => {
+    expect(thrown(() => parseRegisteredUser(body))).toMatchObject({ kind: 'business', reason: 'unknown' });
+  });
+});
+
+describe('parseDepositHistory', () => {
+  const row = {
+    id: 'dep-1',
+    reference: 'KD-AAAAAA',
+    status: 'completed',
+    payout_cents: 49500,
+    value_cents: 50000,
+    fee_cents: 500,
+    failure_reason: null,
+    created_at: '2026-09-26T12:05:00Z',
+    destination: { kind: 'shap_id', shap_id: '+27821234567', shap_name: 'M. Mothiba', bank: 'CAPITEC' },
+  };
+
+  it('parses a row into what the app shows', () => {
+    expect(parseDepositHistory({ deposits: [row] })).toEqual([
+      {
+        id: 'dep-1',
+        reference: 'KD-AAAAAA',
+        status: 'completed',
+        payoutCents: 49500,
+        valueCents: 50000,
+        feeCents: 500,
+        createdAt: Date.UTC(2026, 8, 26, 12, 5),
+        destination: { kind: 'shapId', shapId: '+27821234567', shapName: 'M. Mothiba', bankId: 'capitec' },
+      },
+    ]);
+  });
+
+  it('drops a row it cannot read and keeps the rest', () => {
+    const broken = [
+      { ...row, id: 'bad-date', created_at: 'yesterday' },
+      { ...row, id: 'bad-bank', destination: { ...row.destination, bank: 'NOPE' } },
+      { ...row, id: 'no-value', value_cents: undefined },
+      { ...row, id: 'bad-status', status: 'lost' },
+    ];
+    expect(parseDepositHistory({ deposits: [...broken, row] }).map((d) => d.id)).toEqual(['dep-1']);
+  });
+
+  it('refuses a body without a list', () => {
+    expect(thrown(() => parseDepositHistory({ items: [] }))).toMatchObject({ reason: 'unknown' });
   });
 });

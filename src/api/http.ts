@@ -1,11 +1,15 @@
+import { currentAccessToken } from '../storage/user';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import {
   destinationToWire,
   interpretErrorResponse,
   parseDeposit,
+  parseDepositHistory,
+  parseRegisteredUser,
   parseResolvedShapId,
   parseVoucherLookup,
+  registrationToWire,
 } from './wire';
 
 const TIMEOUT_MS = 15_000;
@@ -22,15 +26,18 @@ function baseUrl(): string {
 interface RequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
+  /** Send the signed-in user's token, if there is one. Off only for registering. */
+  auth?: boolean;
 }
 
 /**
  * One request with a 15 s timeout. Anything that stops us getting a full response (offline,
  * DNS, timeout, aborted body) is a 'network' error; the caller never sees the raw failure,
- * which could contain the PIN from the request body.
+ * which could contain the PIN or ID number from the request body.
  */
 async function request(method: 'GET' | 'POST', path: string, options: RequestOptions = {}) {
   const url = `${baseUrl()}${path}`;
+  const token = options.auth === false ? null : await currentAccessToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -42,6 +49,7 @@ async function request(method: 'GET' | 'POST', path: string, options: RequestOpt
       headers: {
         Accept: 'application/json',
         ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token !== null ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -91,5 +99,16 @@ export const httpApi: ApiClient = {
   async getDepositStatus(id) {
     const body = await request('GET', `/deposits/${encodeURIComponent(id)}`);
     return parseDeposit(body);
+  },
+
+  async registerUser(registration) {
+    // A fresh registration must not carry an old, possibly revoked, token.
+    const body = await request('POST', '/users', { body: registrationToWire(registration), auth: false });
+    return parseRegisteredUser(body);
+  },
+
+  async listMyDeposits() {
+    const body = await request('GET', '/me/deposits');
+    return parseDepositHistory(body);
   },
 };

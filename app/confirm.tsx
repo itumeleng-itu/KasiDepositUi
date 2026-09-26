@@ -15,6 +15,7 @@ import { formatRand, spokenRand } from '../src/domain/money';
 import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
 import { saveActiveDeposit } from '../src/storage/activeDeposit';
+import { recordRedemption } from '../src/storage/history';
 import { loadDestination } from '../src/storage/destination';
 import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
 import { borderWidth, colors, spacing, type } from '../src/theme';
@@ -85,17 +86,35 @@ export default function ConfirmScreen() {
         idempotencyKey,
       );
 
+      const sentAt = Date.now();
       try {
         // Lets the launcher reopen the status screen if the app is closed now. Snapshots the
         // destination as it was at Send time, so status is correct even if it changes later.
         await saveActiveDeposit({
           depositId: created.id,
           reference: created.reference,
-          startedAt: Date.now(),
+          startedAt: sentAt,
           destination,
         });
       } catch {
         // The deposit exists either way; resume-after-close is a nicety.
+      }
+
+      try {
+        // The receipt for "Your deposits": what the user confirmed, as they confirmed it.
+        await recordRedemption({
+          depositId: created.id,
+          reference: created.reference,
+          sentAt,
+          valueCents,
+          feeCents,
+          payoutCents: created.payoutCents,
+          destination,
+          status: created.status,
+          ...(created.failureReason !== undefined ? { failureReason: created.failureReason } : {}),
+        });
+      } catch {
+        // Same: history is a nicety and must never stand between the user and their status.
       }
 
       clearVoucherSession();

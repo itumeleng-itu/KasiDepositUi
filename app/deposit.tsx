@@ -2,18 +2,16 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
-import { api } from '../src/api/client';
 import { Button } from '../src/components/Button';
 import { DestinationLine } from '../src/components/DestinationLine';
 import { DigitsField } from '../src/components/DigitsField';
 import { Screen } from '../src/components/Screen';
 import { deposit } from '../src/copy';
 import { PIN_GROUPING, PIN_LENGTH } from '../src/domain/pin';
-import { describeError } from '../src/errorMessage';
 import { loadDestination } from '../src/storage/destination';
 import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
 import { colors, PIN_MAX_FONT_SCALE, spacing, type } from '../src/theme';
-import { startVoucherSession } from '../src/voucherSession';
+import { attemptVoucherLookup } from '../src/voucherLookup';
 
 /**
  * The screen a returning user sees every time. The PIN lives only in this component's state:
@@ -50,17 +48,13 @@ export default function DepositScreen() {
     setLoading(true);
     setError(null);
     Keyboard.dismiss();
-    try {
-      const lookup = await api.lookupVoucher(digits);
-      startVoucherSession(lookup);
-      router.push('/confirm');
-    } catch (caught) {
-      // The PIN stays in the field so the user can check it against the slip.
-      setError(describeError(caught, { moneyMayHaveMoved: false }));
-    } finally {
-      busyRef.current = false;
-      setLoading(false);
-    }
+    // The PIN stays in the field on failure, so the user can check it against the slip.
+    const result = await attemptVoucherLookup(digits);
+    if (result.ok) router.push('/confirm');
+    else if (result.mustRegister) router.replace('/register');
+    else setError(result.message);
+    busyRef.current = false;
+    setLoading(false);
   }
 
   return (
@@ -107,6 +101,20 @@ export default function DepositScreen() {
         onPress={onContinue}
         disabled={!complete}
         loading={loading}
+      />
+
+      <Button
+        variant="text"
+        label={deposit.scanButton}
+        onPress={() => router.push('/scan')}
+        disabled={loading}
+      />
+
+      <Button
+        variant="text"
+        label={deposit.historyButton}
+        onPress={() => router.push('/history')}
+        disabled={loading}
       />
     </Screen>
   );

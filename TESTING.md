@@ -28,6 +28,45 @@ npx tsc --noEmit       # strict type check
 npx expo-doctor        # dependency and config check
 ```
 
+## Demo scenarios: registering (fake API)
+
+A fresh install opens **Register**: full names, SA ID number and PayShap cellphone number. The app
+checks the ID itself first (13 digits, a real birth date, the citizenship digit, the check digit,
+and 18 or older), so these never reach the fake. After Continue the number is looked up and
+**Is this you?** appears; **Yes, register me** is what calls the server. The **ID number's
+sequence digits** (positions 7-10) pick the server's answer. Every ID works repeatedly.
+
+| ID number | What should happen |
+|---|---|
+| `8001015009087` (or any other valid adult ID) | Registers. One haptic, then the PIN screen. |
+| `8001010000081` | *We couldn't verify these details with Home Affairs...* and **Change my details**, which goes back to Register with everything still filled in. |
+| `8001010001089` | *This ID number is already registered with different details...* and **Change my details**. |
+| `8001010002087` | *This PayShap number belongs to someone else...* Use **No, change number**. |
+| `8001010003085` | *No connection. Check your data and try again.* Tap **Yes, register me** again. |
+| `8001015009088` | Never sent: *That isn't a valid SA ID number...* under the field (wrong check digit). |
+| `0809275001083` | Never sent: *You must be 18 or older...* (18 on 27 Sep 2026; change the date to test the edge). |
+
+The PayShap number table below applies to Register too: `082 123 4569` shows its message on the
+**Check your PayShap number** screen, with the number ready to edit.
+
+Things to confirm: the ID number is not saved on the phone (only a session token and the names
+are), and closing the app mid-registration just shows Register again. A phone that was set up
+before this change also opens Register once; its saved destination and history are kept.
+
+## Your deposits
+
+**Your deposits** on the PIN screen lists deposits newest first: amount received, status in words
+(*Sending*, *On its way*, *Paid*, *Not sent*), where it went, and when. Tap a row for the details:
+amount received, voucher value, fee, paid into, sent at, and a selectable reference. A deposit
+that hadn't finished when last seen checks its latest status on open and offers **Follow this
+deposit**.
+
+- The list merges the server's copy (`GET /v1/me/deposits`) with what the phone saved. In airplane
+  mode it shows the phone's copy with *No connection. Showing what's saved on this phone.*
+- The fake API only remembers deposits made since the app started. After a reload, the list is
+  what the phone saved.
+- The phone keeps the 20 most recent.
+
 ## Demo scenarios: PayShap number (fake API)
 
 The **last digit of the cellphone number** picks the scenario, on the setup screen. `082 123 4567`
@@ -64,9 +103,35 @@ Both scenarios 2 and 3 end with the reassurance sentence: once a deposit exists,
 attempted, so every outcome — however it fails — says the money is safe. Every status screen also
 shows a selectable **Reference: KD-XXXXXX**.
 
+## Scan a voucher
+
+The PIN screen's **Scan voucher QR** button opens the camera. A scan never sends money by
+itself: it does exactly what typing the PIN and tapping Continue does — look the voucher up,
+then show the same confirm screen. Nothing is sent until Send is tapped.
+
+- **Fake API.** Any QR generator can make one. Encode
+  `kasideposit://redeem?pin=<16 digits>` — the PIN's last digit picks the fake scenario, exactly
+  as for a typed PIN (see the table above).
+- **Real API.** Sell a voucher at `https://kasidepositapi.onrender.com/till` and scan the QR on
+  the slip next to the PIN.
+
+Cases to walk through:
+
+- **A good scan.** It reaches the confirm screen with the right amount, and nothing is sent
+  until Send is tapped.
+- **An already-used voucher.** Scan a QR for a voucher that has already been redeemed: the same
+  *This voucher has already been used* message appears, and the camera resumes scanning.
+- **A non-KasiDeposit QR.** Point it at any other QR code (a website, a WhatsApp contact, ...):
+  *This isn't a KasiDeposit voucher...* appears without navigating anywhere, and scanning
+  continues — try several in a row and confirm the screen never floods with repeated messages.
+- **Camera permission denied.** Deny it once: the explanation appears with **Try again** and
+  **Type the PIN instead**. Deny it so it can't be asked again (or turn it off in the phone's app
+  settings first): **Open settings** appears instead of **Try again**.
+- **Back button.** From the scan screen, Android back returns to the PIN screen.
+
 ## Flows to walk through on the phone
 
-**First run, a good number.** Fresh install opens *Where should your money go?* with no red
+**First run, a good number.** (After registering, above; to see this screen on its own, use **Change** on the PIN screen.) *Where should your money go?* opens with no red
 errors and Continue disabled, with *Enter your cellphone number* underneath. Type
 `082 123 4560` (or paste `0821234560`, or `+27 82 123 4560` — any format from the ShapID table in
 the brief works). Continue enables once the number is valid; tap it. After the loading state
@@ -137,6 +202,7 @@ screens, switch apps and return: what you typed is still there.
 | Change details | cancel, no save |
 | Confirm | returns to the PIN screen (blocked while Send is in flight) |
 | Status | always goes to the PIN screen, never to confirm |
+| Scan | returns to the PIN screen (its default stack parent — no special handling needed) |
 
 ## Airplane mode
 

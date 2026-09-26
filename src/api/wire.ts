@@ -7,20 +7,29 @@
  *   POST /deposits          { voucher_token, destination }           -> deposit
  *                           with an `Idempotency-Key` header
  *   GET  /deposits/{id}                                              -> deposit
+ *   POST /users             { full_names, id_number, shap_id }       -> registered user
+ *   GET  /me/deposits                                                -> { deposits: [...] }
+ *   Every call except POST /users and GET /shapid sends `Authorization: Bearer <token>`; a
+ *   missing, unknown or revoked token is 401 `{ "reason": "not_registered" }`.
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
  *   `{ "detail": { "reason": "<FailureReason>" } }`.
  */
 import type { BankId } from '../domain/banks';
+import { parseStoredDestination } from '../domain/destination';
 import { ApiError } from './errors';
 import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
+  REGISTRATION_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
   type ClearingFailure,
   type Deposit,
+  type DepositRecord,
   type DepositStatus,
   type Destination,
   type FailureReason,
+  type RegisteredUser,
+  type Registration,
   type ResolvedShapId,
   type VoucherFailure,
   type VoucherLookup,
@@ -59,11 +68,12 @@ function isFailureReason(value: unknown): value is FailureReason {
     typeof value === 'string' &&
     (Object.prototype.hasOwnProperty.call(IDENTITY_FAILURE_REASONS, value) ||
       Object.prototype.hasOwnProperty.call(CLEARING_FAILURE_REASONS, value) ||
-      Object.prototype.hasOwnProperty.call(VOUCHER_FAILURE_REASONS, value))
+      Object.prototype.hasOwnProperty.call(VOUCHER_FAILURE_REASONS, value) ||
+      Object.prototype.hasOwnProperty.call(REGISTRATION_FAILURE_REASONS, value))
   );
 }
 
-function isDepositFailureReason(value: unknown): value is ClearingFailure | VoucherFailure {
+export function isDepositFailureReason(value: unknown): value is ClearingFailure | VoucherFailure {
   return (
     typeof value === 'string' &&
     (Object.prototype.hasOwnProperty.call(CLEARING_FAILURE_REASONS, value) ||
@@ -71,7 +81,7 @@ function isDepositFailureReason(value: unknown): value is ClearingFailure | Vouc
   );
 }
 
-function isDepositStatus(value: unknown): value is DepositStatus {
+export function isDepositStatus(value: unknown): value is DepositStatus {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(DEPOSIT_STATUSES, value);
 }
 
@@ -99,7 +109,9 @@ export function interpretErrorResponse(status: number, body: unknown): ApiError 
   const reason = isRecord(body)
     ? (body.reason ?? (isRecord(body.detail) ? body.detail.reason : undefined))
     : undefined;
-  return ApiError.business(isFailureReason(reason) ? reason : 'unknown');
+  if (isFailureReason(reason)) return ApiError.business(reason);
+  // Whatever the body says, a 401 means this phone's session is no good: register again.
+  return ApiError.business(status === 401 ? 'not_registered' : 'unknown');
 }
 
 // A 2xx we cannot read is our problem, not the user's connection and not a bad voucher.
@@ -165,4 +177,80 @@ export function parseDeposit(body: unknown): Deposit {
       : 'unknown';
   }
   return deposit;
+}
+
+export function registrationToWire(registration: Registration) {
+  return {
+    full_names: registration.fullNames,
+    id_number: registration.idNumber,
+    shap_id: registration.shapId,
+  };
+}
+
+export function parseRegisteredUser(body: unknown): RegisteredUser {
+  if (
+    !isRecord(body) ||
+    typeof body.user_id !== 'string' ||
+    body.user_id.length === 0 ||
+    typeof body.access_token !== 'string' ||
+    body.access_token.length === 0 ||
+    typeof body.full_names !== 'string' ||
+    body.full_names.length === 0
+  ) {
+    throw malformed();
+  }
+  return { userId: body.user_id, accessToken: body.access_token, fullNames: body.full_names };
+}
+
+function bankIdOf(code: unknown): BankId | undefined {
+  return (Object.keys(BANK_API_CODES) as BankId[]).find((id) => BANK_API_CODES[id] === code);
+}
+
+/** The wire destination of a past deposit, with the name it resolved to, as the app stores it. */
+function parseRecordDestination(value: unknown) {
+  if (!isRecord(value)) return null;
+  const bankId = bankIdOf(value.bank);
+  if (value.kind === 'shap_id') {
+    return parseStoredDestination({
+      kind: 'shapId',
+      shapId: value.shap_id,
+      shapName: value.shap_name,
+      bankId,
+    });
+  }
+  if (value.kind === 'account') {
+    return parseStoredDestination({
+      kind: 'account',
+      name: value.name,
+      accountNumber: value.account_number,
+      bankId,
+    });
+  }
+  return null;
+}
+
+function parseDepositRecord(value: unknown): DepositRecord | null {
+  if (!isRecord(value) || !isCents(value.value_cents) || !isCents(value.fee_cents)) return null;
+  const createdAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : NaN;
+  if (!Number.isFinite(createdAt)) return null;
+  const destination = parseRecordDestination(value.destination);
+  if (destination === null) return null;
+  let deposit: Deposit;
+  try {
+    deposit = parseDeposit(value);
+  } catch {
+    return null;
+  }
+  return { ...deposit, valueCents: value.value_cents, feeCents: value.fee_cents, createdAt, destination };
+}
+
+/**
+ * The list is the server's; one unreadable entry is dropped rather than failing the whole
+ * screen, so a single odd row cannot hide the rest of the user's history.
+ */
+export function parseDepositHistory(body: unknown): DepositRecord[] {
+  if (!isRecord(body) || !Array.isArray(body.deposits)) throw malformed();
+  return body.deposits
+    .map(parseDepositRecord)
+    .filter((record): record is DepositRecord => record !== null);
 }

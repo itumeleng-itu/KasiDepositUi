@@ -20,3 +20,22 @@ export function validateName(raw: string): NameError | null {
   if (!NAME_PATTERN.test(name)) return 'invalid_chars';
   return null;
 }
+
+export const FULL_NAMES_MAX = 100;
+
+export type FullNamesError = 'required' | 'one_name' | 'too_long' | 'invalid_chars';
+
+/**
+ * First names and surname, as on the ID: at least two names. Each name follows the same
+ * character rules as a single name; the whole is longer than one name allows, because SA IDs
+ * often carry three or four given names.
+ */
+export function validateFullNames(raw: string): FullNamesError | null {
+  const names = normaliseName(raw);
+  if (names.length === 0) return 'required';
+  if (names.length > FULL_NAMES_MAX) return 'too_long';
+  if (!NAME_PATTERN.test(names)) return 'invalid_chars';
+  const parts = names.split(' ').filter((part) => /\p{L}/u.test(part));
+  if (parts.length < 2) return 'one_name';
+  return null;
+}

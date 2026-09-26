@@ -103,7 +103,59 @@ export const VOUCHER_FAILURE_REASONS: Record<VoucherFailure, true> = {
   voucher_too_small: true,
 };
 
-export type FailureReason = IdentityFailure | ClearingFailure | VoucherFailure;
+/**
+ * Registration and the signed-in session. Like identity failures these happen before any money
+ * moves, so they never carry the reassurance. `not_registered` can come back from any call that
+ * needs a user (the session on this phone was revoked or never existed): register again.
+ */
+export type RegistrationFailure =
+  | 'id_number_invalid'
+  | 'id_number_under_age'
+  | 'id_verification_failed'
+  | 'id_number_already_registered'
+  | 'shapid_name_mismatch'
+  | 'not_registered';
+
+export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
+  id_number_invalid: true,
+  id_number_under_age: true,
+  id_verification_failed: true,
+  id_number_already_registered: true,
+  shapid_name_mismatch: true,
+  not_registered: true,
+};
+
+export type FailureReason = IdentityFailure | ClearingFailure | VoucherFailure | RegistrationFailure;
+
+/**
+ * What registering sends. The ID number is sent once, here, and never stored on the phone. The
+ * ShapID has already been resolved and confirmed by the user ("Is this you?") before this call.
+ */
+export interface Registration {
+  fullNames: string;
+  idNumber: string;
+  shapId: string;
+}
+
+export interface RegisteredUser {
+  userId: string;
+  /** Opaque bearer token for every later call. Stored in SecureStore, never logged. */
+  accessToken: string;
+  /** As the server stored them, which is what the app shows from now on. */
+  fullNames: string;
+}
+
+/**
+ * One of the signed-in user's deposits as the server remembers it, for "Your deposits".
+ * Unlike `Deposit` (the status poll), it carries what was sent and where.
+ */
+export interface DepositRecord extends Deposit {
+  valueCents: Cents;
+  feeCents: Cents;
+  /** Epoch milliseconds. */
+  createdAt: number;
+  destination: StoredDestination;
+}
 
 export interface Deposit {
   id: string;

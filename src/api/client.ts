@@ -1,6 +1,14 @@
 import { fakeApi } from './fake';
 import { httpApi } from './http';
-import type { Deposit, Destination, ResolvedShapId, VoucherLookup } from './types';
+import type {
+  Deposit,
+  DepositRecord,
+  Destination,
+  RegisteredUser,
+  Registration,
+  ResolvedShapId,
+  VoucherLookup,
+} from './types';
 
 /**
  * The only thing screens talk to. Every method rejects with an `ApiError`
@@ -21,6 +29,14 @@ export interface ApiClient {
     idempotencyKey: string,
   ): Promise<Deposit>;
   getDepositStatus(id: string): Promise<Deposit>;
+  /**
+   * Creates the user, or re-links this phone if the same person registers again with the same
+   * details (a reinstall). The server verifies the ID with Home Affairs and checks the ShapID
+   * belongs to the same person. Needs no session; every other call except `resolveShapId` does.
+   */
+  registerUser(registration: Registration): Promise<RegisteredUser>;
+  /** The signed-in user's most recent deposits, newest first. */
+  listMyDeposits(): Promise<DepositRecord[]>;
 }
 
 // Read as a literal so Expo can inline it at build time.

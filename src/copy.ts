@@ -5,10 +5,13 @@
  */
 import { MIN_VOUCHER_CENTS } from './domain/fees';
 import { formatRand, spokenAmounts, spokenRand, type Cents } from './domain/money';
+import type { FullNamesError } from './domain/name';
+import { MIN_AGE_YEARS, type SaIdError } from './domain/saId';
 import type { ShapIdFormatReason } from './domain/shapId';
 import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
+  REGISTRATION_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
   type DepositStatus,
   type FailureReason,
@@ -30,6 +33,7 @@ export const common = {
 export const setup = {
   titleFirstRun: 'Where should your money go?',
   titleChange: 'Change where your money goes',
+  titleRegister: 'Check your PayShap number',
   helper: 'Your cellphone number, as registered with your bank for PayShap.',
   numberLabel: 'Cellphone number',
   bankPickerLabel: 'Bank',
@@ -54,6 +58,41 @@ export const setup = {
   confirmTitle: 'Is this you?',
   confirmYes: 'Yes, save this',
   confirmNo: 'No, change number',
+  confirmYesRegister: 'Yes, register me',
+} as const;
+
+export const register = {
+  title: 'Register',
+  helper: 'We need these once, to check it is really you. Use the details on your ID.',
+  fullNamesLabel: 'Full names',
+  fullNamesHelper: 'All your names and surname, as on your ID.',
+  idNumberLabel: 'SA ID number',
+  idNumberHelper: 'The 13 digits on your green ID book or smart ID card.',
+  numberLabel: 'PayShap cellphone number',
+  numberHelper: 'The number registered with your bank for PayShap. Your money is paid here.',
+  continue: 'Continue',
+  privacyNote:
+    'Your ID number is sent to us once to verify you with Home Affairs. It is not saved on this phone.',
+  fullNamesError: {
+    required: 'Enter your full names.',
+    one_name: 'Enter your first name and surname.',
+    too_long: 'That is longer than we can accept. Use the names on your ID.',
+    invalid_chars: 'Use letters, spaces, hyphens and apostrophes only.',
+  } satisfies Record<FullNamesError, string>,
+  idNumberError: {
+    empty: 'Enter your ID number.',
+    length: 'An SA ID number has 13 digits.',
+    digits: 'An SA ID number has digits only.',
+    birth_date: "That isn't a valid SA ID number. Check the first 6 digits (your birth date).",
+    citizenship: "That isn't a valid SA ID number. Check each digit against your ID.",
+    checksum: "That isn't a valid SA ID number. Check each digit against your ID.",
+    under_age: `You must be ${MIN_AGE_YEARS} or older to use KasiDeposit.`,
+  } satisfies Record<SaIdError, string>,
+  /** Shown under the disabled Continue button, even before a field has been touched. */
+  unmet: 'Fill in all three to continue.',
+  /** On the confirm step, when registering fails for a reason that means editing the details. */
+  editDetails: 'Change my details',
+  registering: 'Registering',
 } as const;
 
 export const deposit = {
@@ -69,6 +108,26 @@ export const deposit = {
   pasteTooLong: `That doesn't look like a ${PIN_LENGTH}-digit PIN`,
   continue: 'Continue',
   checking: 'Checking your voucher',
+  scanButton: 'Scan voucher QR',
+  historyButton: 'Your deposits',
+} as const;
+
+export const scan = {
+  instruction: 'Point your camera at the QR code on the voucher slip.',
+  invalidQr: "This isn't a KasiDeposit voucher. Scan the QR code on the till slip, or type the PIN.",
+  /** Announced to a screen reader the moment a valid scan is found, before the lookup starts. */
+  voucherFoundAnnouncement: 'Voucher found, checking…',
+  typePinInstead: 'Type the PIN instead',
+  permission: {
+    // Shown before the OS dialog has ever been answered; the request fires automatically.
+    asking: 'Asking for camera access…',
+    deniedTitle: 'Camera access needed',
+    deniedBody: 'KasiDeposit needs the camera to scan the QR code on your voucher slip.',
+    tryAgain: 'Try again',
+    permanentlyDeniedBody:
+      'Camera access was turned off for KasiDeposit. Turn it on in Settings to scan a voucher.',
+    openSettings: 'Open settings',
+  },
 } as const;
 
 export const confirm = {
@@ -102,6 +161,42 @@ export const status = {
   stepCurrent: 'in progress',
   stepTodo: 'not yet',
   progressLabel: (current: string) => `Progress: ${current}`,
+} as const;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "26 Sep 2026, 14:05" in the phone's local time. Built by hand so it reads the same on every device. */
+export function formatSentAt(epochMs: number): string {
+  const d = new Date(epochMs);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+}
+
+export const history = {
+  title: 'Your deposits',
+  empty: 'Deposits you make will show here.',
+  note: 'Your last 20 deposits.',
+  /** Offline: the list is only what this phone had saved. */
+  phoneOnly: "No connection. Showing what's saved on this phone.",
+  /** Short, for the list: the words carry the state, not colour. */
+  statusLabel: {
+    pending: 'Sending',
+    submitted: 'On its way',
+    completed: 'Paid',
+    failed: 'Not sent',
+  } satisfies Record<DepositStatus, string>,
+  rowLabel: (payoutCents: Cents, statusLabel: string, oneLine: string, when: string) =>
+    `${spokenRand(payoutCents)}, ${statusLabel}, to ${oneLine}, ${when}`,
+  rowHint: 'Opens the details',
+  detailTitle: 'Deposit details',
+  received: 'Received',
+  sent: 'Sent',
+  status: 'Status',
+  reference: 'Reference',
+  viewStatus: 'Follow this deposit',
+  checking: 'Checking the latest status',
+  notFound: "We couldn't find this deposit on this phone.",
 } as const;
 
 export type StatusScreenState = DepositStatus | 'still_processing';
@@ -187,6 +282,15 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
   voucher_not_found: "We couldn't find that PIN. Check each digit against your till slip.",
   voucher_already_redeemed: 'This voucher has already been used.',
   voucher_too_small: `This voucher is too small to deposit. The minimum is ${MIN_VOUCHER}.`,
+  id_number_invalid: "That isn't a valid SA ID number. Check each digit against your ID.",
+  id_number_under_age: `You must be ${MIN_AGE_YEARS} or older to use KasiDeposit.`,
+  id_verification_failed:
+    "We couldn't verify these details with Home Affairs. Check your names and ID number match your ID.",
+  id_number_already_registered:
+    'This ID number is already registered with different details. Check your details, or contact support.',
+  shapid_name_mismatch:
+    'This PayShap number belongs to someone else. Use a number registered in your own name.',
+  not_registered: 'You need to register again on this phone to continue.',
 } satisfies Record<FailureReason, string>;
 
 const CLEARING_REASON_SET: ReadonlySet<string> = new Set(Object.keys(CLEARING_FAILURE_REASONS));
@@ -234,3 +338,6 @@ export const ALL_CLEARING_FAILURES = Object.keys(
 export const ALL_VOUCHER_FAILURES = Object.keys(
   VOUCHER_FAILURE_REASONS,
 ) as (keyof typeof VOUCHER_FAILURE_REASONS)[];
+export const ALL_REGISTRATION_FAILURES = Object.keys(
+  REGISTRATION_FAILURE_REASONS,
+) as (keyof typeof REGISTRATION_FAILURE_REASONS)[];
