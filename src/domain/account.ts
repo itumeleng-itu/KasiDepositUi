@@ -1,3 +1,4 @@
+import type { BankId } from './banks';
 import { extractDigits } from './digits';
 import type { DigitGrouping } from './groupedDigits';
 
@@ -9,16 +10,33 @@ export const ACCOUNT_MAX = 11;
  */
 export const ACCOUNT_INPUT_MAX = 20;
 
-export type AccountError = 'required' | 'too_short' | 'too_long';
+/**
+ * How many digits each bank's account numbers have. Banks not listed accept anything from
+ * ACCOUNT_MIN to ACCOUNT_MAX; the bank itself has the final word when the account is checked.
+ */
+export const ACCOUNT_LENGTHS: Partial<Record<BankId, readonly number[]>> = {
+  absa: [8, 9, 10, 11],
+  african_bank: [11],
+  capitec: [10],
+  fnb: [11],
+  investec: [11],
+  nedbank: [10],
+  standard_bank: [9, 11],
+};
+
+export type AccountError = 'required' | 'too_short' | 'too_long' | 'wrong_length';
 
 /** Strip every non-digit, so spaces, dashes and pasted text all work. */
 export function normaliseAccountNumber(raw: string): string {
   return extractDigits(raw);
 }
 
-export function validateAccountNumber(raw: string): AccountError | null {
+/** With a bank chosen, the number must also be one of that bank's lengths. */
+export function validateAccountNumber(raw: string, bankId: BankId | null = null): AccountError | null {
   const digits = normaliseAccountNumber(raw);
   if (digits.length === 0) return 'required';
+  const lengths = bankId === null ? undefined : ACCOUNT_LENGTHS[bankId];
+  if (lengths) return lengths.includes(digits.length) ? null : 'wrong_length';
   if (digits.length < ACCOUNT_MIN) return 'too_short';
   if (digits.length > ACCOUNT_MAX) return 'too_long';
   return null;

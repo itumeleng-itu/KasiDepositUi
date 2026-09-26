@@ -7,6 +7,7 @@ import {
   formatSentAt,
   isClearingFailure,
   nextStatusAction,
+  payout,
   SAFE_MONEY,
   statusCopy,
 } from './copy';
@@ -24,14 +25,14 @@ describe('statusCopy: the copy from the brief, word for word', () => {
   it('submitted', () => {
     expect(statusCopy('submitted', { payoutCents: 49500, destination })).toMatchObject({
       headline: 'On its way',
-      support: 'Sent to Capitec. This usually takes under a minute.',
+      support: 'Sending to Capitec. This usually takes under a minute.',
     });
   });
 
   it('completed', () => {
     expect(statusCopy('completed', { payoutCents: 49500, destination })).toMatchObject({
-      headline: 'R495.00 is in your account',
-      support: 'Paid into ••••4417 at Capitec.',
+      headline: 'R495.00 sent',
+      support: 'Sent to ••••4417 at Capitec.',
     });
   });
 
@@ -61,17 +62,17 @@ describe('statusCopy: the copy from the brief, word for word', () => {
 describe('statusCopy: screen readers and unknown destinations', () => {
   it('speaks amounts and accounts in words', () => {
     const text = statusCopy('completed', { payoutCents: 49500, destination });
-    expect(text.spokenHeadline).toBe('495 rand is in your account');
-    expect(text.spokenSupport).toBe('Paid into account ending 4417 at Capitec.');
+    expect(text.spokenHeadline).toBe('495 rand sent');
+    expect(text.spokenSupport).toBe('Sent to account ending 4417 at Capitec.');
     expect(text.spokenSupport).not.toContain('•');
   });
 
   it('copes without a destination', () => {
     expect(statusCopy('submitted', { payoutCents: 1, destination: null }).support).toBe(
-      'Sent to your bank. This usually takes under a minute.',
+      'Sending to your bank. This usually takes under a minute.',
     );
     expect(statusCopy('completed', { payoutCents: 49500, destination: null }).support).toBe(
-      'Paid into your account.',
+      'Sent to your account.',
     );
   });
 });
@@ -174,5 +175,17 @@ describe('formatSentAt', () => {
 
   it('pads the time but not the day', () => {
     expect(formatSentAt(new Date(2026, 0, 3, 7, 9).getTime())).toBe('3 Jan 2026, 07:09');
+  });
+});
+
+describe('payout.accountWrongLength', () => {
+  it('names the bank and its lengths', () => {
+    expect(payout.accountWrongLength('Capitec', [10])).toBe('Capitec account numbers have 10 digits.');
+    expect(payout.accountWrongLength('Standard Bank', [9, 11])).toBe(
+      'Standard Bank account numbers have 9 or 11 digits.',
+    );
+    expect(payout.accountWrongLength('Absa', [8, 9, 10, 11])).toBe(
+      'Absa account numbers have 8, 9, 10 or 11 digits.',
+    );
   });
 });

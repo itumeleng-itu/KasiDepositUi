@@ -1,6 +1,7 @@
 import { fakeApi } from './fake';
 import { httpApi } from './http';
 import type {
+  BranchCodeLookup,
   Deposit,
   DepositRecord,
   NewPayoutMethod,
@@ -42,6 +43,11 @@ export interface ApiClient {
    * user's ID number. Adding one that is already saved returns it. The first becomes the default.
    */
   addPayoutMethod(method: NewPayoutMethod, makeDefault: boolean): Promise<PayoutMethod>;
+  /**
+   * Which bank a six-digit branch code belongs to, for banks not in the short list. Needs no
+   * session. Unknown codes reject with `branch_code_not_found`.
+   */
+  lookupBranchCode(branchCode: string): Promise<BranchCodeLookup>;
   /** Both return the whole list afterwards, so the phone's copy can simply be replaced. */
   setDefaultPayoutMethod(id: string): Promise<PayoutMethod[]>;
   removePayoutMethod(id: string): Promise<PayoutMethod[]>;

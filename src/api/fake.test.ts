@@ -440,3 +440,21 @@ describe('fake API: listMyDeposits', () => {
     });
   });
 });
+
+describe('lookupBranchCode', () => {
+  it('finds a bank by its universal branch code', async () => {
+    const { api } = setup();
+    await expect(api.lookupBranchCode('198765')).resolves.toEqual({ bankName: 'Nedbank', bankId: 'nedbank' });
+  });
+
+  it("finds a real bank we can't pay into, with no bank id", async () => {
+    const { api } = setup();
+    await expect(api.lookupBranchCode('584000')).resolves.toEqual({ bankName: 'Grindrod Bank', bankId: null });
+  });
+
+  it('rejects an unknown code', async () => {
+    const { api } = setup();
+    const error = await rejection(api.lookupBranchCode('123456'));
+    expect(error).toMatchObject({ kind: 'business', reason: 'branch_code_not_found' });
+  });
+});

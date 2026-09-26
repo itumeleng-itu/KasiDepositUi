@@ -62,11 +62,11 @@ describe('screenState', () => {
 });
 
 describe('progressSteps', () => {
-  it('walks checked, sent, arrived', () => {
-    expect(progressSteps(null)).toEqual(['current', 'todo', 'todo']);
-    expect(progressSteps('pending')).toEqual(['current', 'todo', 'todo']);
-    expect(progressSteps('submitted')).toEqual(['done', 'done', 'current']);
-    expect(progressSteps('completed')).toEqual(['done', 'done', 'done']);
+  it('walks checked, then sent, and stops there', () => {
+    expect(progressSteps(null)).toEqual(['current', 'todo']);
+    expect(progressSteps('pending')).toEqual(['current', 'todo']);
+    expect(progressSteps('submitted')).toEqual(['done', 'current']);
+    expect(progressSteps('completed')).toEqual(['done', 'done']);
   });
 
   it('has no steps for a failed deposit', () => {

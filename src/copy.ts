@@ -21,6 +21,12 @@ import { PIN_LENGTH } from './domain/pin';
 
 const MIN_VOUCHER = formatRand(MIN_VOUCHER_CENTS);
 
+/** [9, 11] -> "9 or 11"; [8, 9, 10, 11] -> "8, 9, 10 or 11". */
+function orList(values: readonly number[]): string {
+  if (values.length <= 1) return values.join('');
+  return `${values.slice(0, -1).join(', ')} or ${values[values.length - 1]}`;
+}
+
 export const SAFE_MONEY = "Your money is safe and hasn't been lost.";
 
 export const common = {
@@ -119,7 +125,18 @@ export const payout = {
     required: 'Enter your account number.',
     too_short: `An account number has at least ${ACCOUNT_MIN} digits.`,
     too_long: `An account number has at most ${ACCOUNT_MAX} digits.`,
+    wrong_length: "That account number is the wrong length for this bank.",
   } satisfies Record<AccountError, string>,
+  /** "Standard Bank account numbers have 9 or 11 digits." */
+  accountWrongLength: (bank: string, lengths: readonly number[]) =>
+    `${bank} account numbers have ${orList(lengths)} digits.`,
+  otherBank: 'Other bank',
+  branchCodeLabel: 'Branch code',
+  branchCodeHelper: "6 digits. Your bank's universal branch code works.",
+  branchCodeIncomplete: 'A branch code has 6 digits.',
+  findingBank: 'Finding your bank',
+  bankFound: (bank: string) => `Bank: ${bank}`,
+  bankNotSupported: (bank: string) => `We can't pay into ${bank} yet. Choose another bank, or use PayShap.`,
   accountUnmet: 'Choose your bank and enter the account number.',
 } as const;
 
@@ -159,19 +176,19 @@ export const scan = {
 } as const;
 
 export const confirm = {
-  title: 'Check before you send',
+  title: 'Check before you deposit',
   voucherValue: 'Voucher value',
   fee: 'Fee',
   youReceive: "You'll receive",
   paidInto: 'Paid into',
-  note: "Money usually arrives within a minute. This can't be undone once sent.",
+  note: "This can't be undone once you deposit.",
   /** The amount is in the button so the user confirms a specific number. */
-  send: (payoutCents: Cents) => `Send ${formatRand(payoutCents)}`,
+  send: (payoutCents: Cents) => `Deposit ${formatRand(payoutCents)}`,
   /** Shown on the disabled button when the voucher is too small, instead of a misleading amount. */
-  cannotSend: "Can't send this voucher",
+  cannotSend: "Can't deposit this voucher",
   paidIntoSpoken: (primary: string, spokenOneLine: string) => `Paid into ${primary}, ${spokenOneLine}`,
-  sendLabel: (payoutCents: Cents) => `Send ${spokenRand(payoutCents)}`,
-  sending: 'Sending',
+  sendLabel: (payoutCents: Cents) => `Deposit ${spokenRand(payoutCents)}`,
+  sending: 'Depositing',
   notMyDetails: 'Pay into a different account',
   tooSmall: `This voucher is too small to deposit. The minimum is ${MIN_VOUCHER}.`,
   /** Fee is shown as a deduction. U+2212 minus sign. */
@@ -184,7 +201,8 @@ export const status = {
   tryAgain: common.tryAgain,
   tryAgainLater: 'Try again later',
   reference: (ref: string) => `Reference: ${ref}`,
-  steps: { checked: 'Checked', sent: 'Sent', arrived: 'Arrived' },
+  /** Ends at Sent: we are told when the money leaves, never when it lands in the account. */
+  steps: { checked: 'Checked', sent: 'Sent' },
   stepDone: 'done',
   stepCurrent: 'in progress',
   stepTodo: 'not yet',
@@ -211,19 +229,20 @@ export const history = {
   statusLabel: {
     pending: 'Sending',
     submitted: 'On its way',
-    completed: 'Paid',
+    completed: 'Sent',
     failed: 'Not sent',
   } satisfies Record<DepositStatus, string>,
   rowLabel: (payoutCents: Cents, statusLabel: string, oneLine: string, when: string) =>
     `${spokenRand(payoutCents)}, ${statusLabel}, to ${oneLine}, ${when}`,
   rowHint: 'Opens the details',
   detailTitle: 'Deposit details',
-  received: 'Received',
+  received: 'Amount sent',
   sent: 'Sent',
   status: 'Status',
   reference: 'Reference',
   viewStatus: 'Follow this deposit',
   checking: 'Checking the latest status',
+  syncing: 'Checking for new deposits',
   notFound: "We couldn't find this deposit on this phone.",
 } as const;
 
@@ -260,18 +279,20 @@ export function statusCopy(state: StatusScreenState, input: StatusCopyInput): St
     case 'submitted':
       return plain(
         'On its way',
-        `Sent to ${destination ? destination.bankName : 'your bank'}. This usually takes under a minute.`,
+        `Sending to ${destination ? destination.bankName : 'your bank'}. This usually takes under a minute.`,
       );
     case 'completed': {
+      // "Sent", never "in your account": the payout has left us, but we are not told when the
+      // receiving bank credits it.
       const support = destination
-        ? `Paid into ${destination.maskedAccount} at ${destination.bankName}.`
-        : 'Paid into your account.';
+        ? `Sent to ${destination.maskedAccount} at ${destination.bankName}.`
+        : 'Sent to your account.';
       return {
-        headline: `${formatRand(input.payoutCents)} is in your account`,
+        headline: `${formatRand(input.payoutCents)} sent`,
         support,
-        spokenHeadline: `${spokenRand(input.payoutCents)} is in your account`,
+        spokenHeadline: `${spokenRand(input.payoutCents)} sent`,
         spokenSupport: destination
-          ? `Paid into account ending ${destination.maskedAccount.slice(-4)} at ${destination.bankName}.`
+          ? `Sent to account ending ${destination.maskedAccount.slice(-4)} at ${destination.bankName}.`
           : support,
       };
     }
@@ -322,6 +343,7 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
   accounts_unavailable: "We can't add bank accounts right now. Try again later, or use PayShap.",
   payout_method_limit: 'You can save up to 5. Remove one to add another.',
   payout_method_not_found: 'That one was already removed. Choose another.',
+  branch_code_not_found: "We couldn't find that branch code. Check it in your banking app, or use your bank's universal branch code.",
   id_number_already_registered:
     'This ID number is already registered with different details. Check your details, or contact support.',
   shapid_name_mismatch:

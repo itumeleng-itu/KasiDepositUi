@@ -38,6 +38,10 @@
  *   9  account_not_found     8  account_holder_mismatch     anything else  verified
  * At most 5 payout methods.
  *
+ * Branch codes: each bank's universal branch code finds that bank, e.g. 198765 Nedbank,
+ * 678910 TymeBank; 584000 is Grindrod Bank, a real bank we can't pay into yet; any other code
+ * is branch_code_not_found.
+ *
  * The fake has no database: registered names, payout methods and the deposits listed by
  * `listMyDeposits` last until the app reloads. The app keeps its own copies of both lists, so
  * after a reload "Paying into" and history still show; the payout-methods screen then shows
@@ -54,6 +58,8 @@ import { formatRand, type Cents } from '../domain/money';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import type {
+  BankId,
+  BranchCodeLookup,
   ClearingFailure,
   Deposit,
   DepositRecord,
@@ -66,6 +72,21 @@ import type {
   VoucherFailure,
   VoucherLookup,
 } from './types';
+
+/** Universal branch codes. Null: a real bank that isn't one we can pay into. */
+const FAKE_BRANCH_CODES: Readonly<Record<string, { bankName: string; bankId: BankId | null }>> = {
+  '470010': { bankName: 'Capitec', bankId: 'capitec' },
+  '250655': { bankName: 'FNB', bankId: 'fnb' },
+  '632005': { bankName: 'Absa', bankId: 'absa' },
+  '051001': { bankName: 'Standard Bank', bankId: 'standard_bank' },
+  '198765': { bankName: 'Nedbank', bankId: 'nedbank' },
+  '678910': { bankName: 'TymeBank', bankId: 'tymebank' },
+  '430000': { bankName: 'African Bank', bankId: 'african_bank' },
+  '679000': { bankName: 'Discovery Bank', bankId: 'discovery_bank' },
+  '888000': { bankName: 'Bank Zero', bankId: 'bank_zero' },
+  '580105': { bankName: 'Investec', bankId: 'investec' },
+  '584000': { bankName: 'Grindrod Bank', bankId: null },
+};
 
 const SCENARIO_VOUCHER_CENTS: Readonly<Record<number, Cents>> = {
   0: 50000,
@@ -259,6 +280,17 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
         feeCents,
         payoutCents: calculatePayout(valueCents, feeCents),
       };
+    },
+
+    async lookupBranchCode(branchCode: string): Promise<BranchCodeLookup> {
+      await sleep(delayMs());
+      const found = FAKE_BRANCH_CODES[branchCode];
+      if (!found) {
+        log('[fake-api] lookupBranchCode -> branch_code_not_found');
+        throw ApiError.business('branch_code_not_found');
+      }
+      log(`[fake-api] lookupBranchCode -> ${found.bankName}`);
+      return found;
     },
 
     async resolveShapId(shapId: string): Promise<ResolvedShapId> {

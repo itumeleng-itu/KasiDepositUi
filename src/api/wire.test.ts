@@ -9,6 +9,7 @@ import {
   parseDepositHistory,
   parsePayoutMethods,
   parseRegisteredUser,
+  parseBranchCodeLookup,
   parseResolvedShapId,
   parseVoucherLookup,
   registrationToWire,
@@ -300,5 +301,25 @@ describe('parseDepositHistory', () => {
 
   it('refuses a body without a list', () => {
     expect(thrown(() => parseDepositHistory({ items: [] }))).toMatchObject({ reason: 'unknown' });
+  });
+});
+
+describe('parseBranchCodeLookup', () => {
+  it('maps a bank we can pay into', () => {
+    expect(parseBranchCodeLookup({ bank: 'NEDBANK', bank_name: 'Nedbank' })).toEqual({
+      bankName: 'Nedbank',
+      bankId: 'nedbank',
+    });
+  });
+
+  it("keeps the name of a bank we can't pay into", () => {
+    expect(parseBranchCodeLookup({ bank: null, bank_name: 'Grindrod Bank' })).toEqual({
+      bankName: 'Grindrod Bank',
+      bankId: null,
+    });
+  });
+
+  it('rejects a body without a bank name', () => {
+    expect(() => parseBranchCodeLookup({ bank: 'NEDBANK' })).toThrow();
   });
 });

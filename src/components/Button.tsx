@@ -15,7 +15,7 @@ interface ButtonProps {
   loadingLabel?: string;
   /** Text buttons only: sit at the start of the row (Back) rather than centred. */
   align?: 'start' | 'center';
-  /** Read by screen readers instead of `label`, e.g. "Send 495 rand". */
+  /** Read by screen readers instead of `label`, e.g. "Deposit 495 rand". */
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }
