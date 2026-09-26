@@ -10,7 +10,7 @@ const shapIdDestination: StoredDestination = {
 const accountDestination: StoredDestination = {
   kind: 'account',
   name: 'Thabo Mokoena',
-  accountNumber: '1234564417',
+  accountLast4: '4417',
   bankId: 'capitec',
 };
 
@@ -88,9 +88,10 @@ describe('parseStoredDestination: account', () => {
   });
 
   it.each([
-    ['an invalid name', { ...accountDestination, name: 'X' }],
-    ['a non-digit account number', { ...accountDestination, accountNumber: '1234 567 890' }],
-    ['a too-short account number', { ...accountDestination, accountNumber: '12345' }],
+    ['an empty name', { ...accountDestination, name: ' ' }],
+    ['more than the last four digits', { ...accountDestination, accountLast4: '1234564417' }],
+    ['non-digits', { ...accountDestination, accountLast4: '44a7' }],
+    ['a full account number instead', { ...accountDestination, accountLast4: undefined, accountNumber: '1234564417' }],
     ['an unknown bank', { ...accountDestination, bankId: 'not_a_bank' }],
   ])('rejects %s', (_label, value) => {
     expect(parseStoredDestination(value)).toBeNull();

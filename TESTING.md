@@ -30,28 +30,59 @@ npx expo-doctor        # dependency and config check
 
 ## Demo scenarios: registering (fake API)
 
-A fresh install opens **Register**: full names, SA ID number and PayShap cellphone number. The app
-checks the ID itself first (13 digits, a real birth date, the citizenship digit, the check digit,
-and 18 or older), so these never reach the fake. After Continue the number is looked up and
-**Is this you?** appears; **Yes, register me** is what calls the server. The **ID number's
-sequence digits** (positions 7-10) pick the server's answer. Every ID works repeatedly.
+A fresh install opens **Register**: full names and SA ID number only. The app checks the ID
+itself first (13 digits, a real birth date, the citizenship digit, the check digit, and 18 or
+older), so bad ones never reach the fake. The **ID number's sequence digits** (positions 7-10)
+pick the server's answer. Every ID works repeatedly.
 
 | ID number | What should happen |
 |---|---|
-| `8001015009087` (or any other valid adult ID) | Registers. One haptic, then the PIN screen. |
-| `8001010000081` | *We couldn't verify these details with Home Affairs...* and **Change my details**, which goes back to Register with everything still filled in. |
-| `8001010001089` | *This ID number is already registered with different details...* and **Change my details**. |
-| `8001010002087` | *This PayShap number belongs to someone else...* Use **No, change number**. |
-| `8001010003085` | *No connection. Check your data and try again.* Tap **Yes, register me** again. |
+| `8001015009087` (or any other valid adult ID) | Registers. One haptic, then **How do you want to get paid?** |
+| `8001010000081` | *We couldn't verify these details with Home Affairs...* under the form, details still filled in. |
+| `8001010001089` | *This ID number is already registered with different details...* |
+| `8001010003085` | *No connection. Check your data and try again.* Tap **Continue** again. |
 | `8001015009088` | Never sent: *That isn't a valid SA ID number...* under the field (wrong check digit). |
 | `0809275001083` | Never sent: *You must be 18 or older...* (18 on 27 Sep 2026; change the date to test the edge). |
 
-The PayShap number table below applies to Register too: `082 123 4569` shows its message on the
-**Check your PayShap number** screen, with the number ready to edit.
-
 Things to confirm: the ID number is not saved on the phone (only a session token and the names
 are), and closing the app mid-registration just shows Register again. A phone that was set up
-before this change also opens Register once; its saved destination and history are kept.
+before this change opens Register once; its history is kept, its old saved number is not (add it
+again as a payout method).
+
+## Getting paid: PayShap or a bank account
+
+Straight after registering: **How do you want to get paid?** with two cards, **PayShap** and
+**Bank account**. Nothing is assumed; each is checked when it is added, and whichever one fails
+offers the other. The first one added is what *Paying into* uses. Later, **Change** on the PIN
+screen (or **Pay into a different account** on confirm) opens **Where your money goes**: every
+saved number and account as a card. Tap a card to pay into it (it shows *Paying into* with a tick,
+and you go back); **Remove** asks first. Up to 5.
+
+**PayShap number** (fake API: the last digit picks the scenario; on the real API, list the number
+on the till page's *PayShap numbers (demo)* first — see the API README):
+
+| Number ends in | What should happen |
+|---|---|
+| `082 555 1234`, or anything not listed below | Added in your own masked name, e.g. **T. Mokoena** for Thabo Mokoena, Capitec. |
+| `...5` | *This PayShap number is registered to someone else...* and **Use a bank account instead**. |
+| `...9` | *We couldn't find that number on PayShap...* and **Use a bank account instead**. |
+| `...8` | *This account can't receive PayShap payments right now...* and **Use a bank account instead**. |
+| `...7` | *...registered at more than one bank...* and the bank list appears; tap one to add it there. |
+| `...6` | *No connection. Check your data and try again.* Never implies the number is wrong. |
+
+**Bank account.** The holder is your registered name, shown and not editable. Choose a bank and
+type the account number (grouped as you type). The account number's last digit picks the scenario:
+
+| Account number ends in | What should happen |
+|---|---|
+| `...0` to `...7`, e.g. `1234 564 417` | Added as **Thabo Mokoena · Capitec · ••••4417**. |
+| `...9` | *We couldn't find that account at that bank...* |
+| `...8` | *This account is not in your name...* and **Use PayShap instead**. |
+
+Confirm the full account number never shows again anywhere after adding (cards, confirm, status,
+history all show `••••4417`). None of these messages say the money is safe: nothing has moved yet.
+The fake forgets its saved methods when the app reloads; the phone's copy still shows *Paying
+into*, and a deposit to it still works.
 
 ## Your deposits
 
@@ -66,22 +97,6 @@ deposit**.
 - The fake API only remembers deposits made since the app started. After a reload, the list is
   what the phone saved.
 - The phone keeps the 20 most recent.
-
-## Demo scenarios: PayShap number (fake API)
-
-The **last digit of the cellphone number** picks the scenario, on the setup screen. `082 123 4567`
-resolves normally; the table below covers every other digit. Every number works repeatedly.
-
-| Number ends in | What should happen |
-|---|---|
-| `082 123 4560`, or anything not listed below | Resolves as **M. Mothiba**, Capitec. |
-| `082 123 4567` | *This number is registered at more than one bank. Choose which bank should receive your money.* The bank picker appears below the field. |
-| `082 123 4568` | *This account can't receive PayShap payments right now. Check with your bank.* |
-| `082 123 4569` | *We couldn't find that number on PayShap. Check the digits, or register your number in your banking app.* |
-| `082 123 4566` | *No connection. Check your data and try again.* Never implies the number is wrong. |
-
-None of these messages say the money is safe — nothing has moved yet at this point. Contrast with
-the voucher table below, where every listed failure happens *after* Send and always does.
 
 ## Demo scenarios: voucher PIN (fake API)
 
@@ -131,41 +146,30 @@ Cases to walk through:
 
 ## Flows to walk through on the phone
 
-**First run, a good number.** (After registering, above; to see this screen on its own, use **Change** on the PIN screen.) *Where should your money go?* opens with no red
-errors and Continue disabled, with *Enter your cellphone number* underneath. Type
-`082 123 4560` (or paste `0821234560`, or `+27 82 123 4560` — any format from the ShapID table in
-the brief works). Continue enables once the number is valid; tap it. After the loading state
-(*Checking your number*) you land on **Is this you?** showing **M. Mothiba** and **Capitec**.
-Tap **No, change number**: you're back on the form with the number still there. Tap **Continue**
-again, then **Yes, save this**: one haptic, then the PIN screen shows *Paying into 082 123 4567 ·
-Capitec*.
+**First run.** Register with `8001015009087` and your own names. **How do you want to get
+paid?** opens with no back button. Tap **PayShap**, type `082 555 1234` (or paste `0825551234`, or
+`+27 82 555 1234`). **Add** enables once the number is valid; tap it. After *Checking with PayShap*,
+one haptic, then the PIN screen shows *Paying into 082 555 1234 · Capitec*.
 
-**The ambiguous path.** Type a number ending in `7` (e.g. `082 123 4567`). Continue shows *This
-number is registered at more than one bank* and a bank list appears underneath. Tap a bank (say
-Capitec): it resolves immediately to **Is this you?** showing that bank. Save as above — the saved
-destination is qualified to that bank, and reopening Change details later shows the same number.
+**Someone else's number, then an account.** Register, choose PayShap and type a number ending in
+`5`: *This PayShap number is registered to someone else...* Tap **Use a bank account instead**:
+the account screen opens with your name as holder. Add `1234 564 417` at any bank: the PIN screen
+shows *Paying into ••••4417 · <bank>*.
 
-**Not found and suspended.** A number ending in `9` shows *We couldn't find that number on
-PayShap...* under the field; the number stays so a digit can be fixed. A number ending in `8`
-shows *This account can't receive PayShap payments right now...* Neither stores anything, and
-neither shows the "money is safe" sentence — nothing has moved.
+**The ambiguous path.** Add a number ending in `7`: the bank list appears under the message. Tap a
+bank: it is added at that bank without retyping the number.
 
-**Offline on setup.** A number ending in `6` shows *No connection. Check your data and try again.*
-It never implies the number itself is wrong.
+**Switching and removing.** From the PIN screen tap **Change**. Add a second method with the
+buttons at the bottom; it becomes *Paying into*. Tap the other card: back on the PIN screen, *Paying
+into* follows. Remove the one in use: the other becomes *Paying into*. Remove the last one: the
+list says so, and the PIN screen sends you to add one before a deposit.
 
-**Change-number mode, including Cancel.** From the PIN screen tap **Change**. The field is
-prefilled with the saved number (via its local display form, e.g. `082 123 4567`, never the raw
-`+27...`). **Cancel** returns without saving or re-resolving. Typing a different number and saving
-always re-resolves first — you always see **Is this you?** again before anything is overwritten,
-even if you type the same number back.
+**A full deposit end to end.** With a payout method added, open the app fresh: it goes straight to
+the PIN screen showing *Paying into ... · ...*. Enter a PIN ending in `0`, confirm (voucher value
+and fee still show, above **You'll receive R495.00**, and **Paid into** shows **T. Mokoena** /
+**Capitec · ••• ••• 1234**), send, and watch it complete.
 
-**A full deposit end to end using a saved destination.** With a destination already saved, open
-the app fresh: it goes straight to the PIN screen showing *Paying into ... · ...*. Enter a PIN
-ending in `0`, confirm (voucher value and fee still show, above **You'll receive R495.00**, and
-**Paid into** shows **M. Mothiba** / **Capitec · ••• ••• 4567**), send, and watch it complete.
-
-**Clearing failure vs identity failure, side by side.** Do the not-found walkthrough above (setup,
-number ending in `9`) and note the message never says the money is safe. Then do a full deposit
+**Clearing failure vs identity failure, side by side.** Add a PayShap number ending in `9` and note the message never says the money is safe. Then do a full deposit
 with PIN ending in `3` (bank_unavailable) and note the status screen's message *does* say it.
 Same underlying rule, opposite phases: nothing had moved in the first case, something was
 attempted in the second.
@@ -183,23 +187,21 @@ been shown, reopening goes to the PIN screen.
 `createDeposit ... new deposit` line. Idempotency itself (same key, same deposit, two requests at
 once, changed destination) is covered by `src/api/fake.test.ts`.
 
-**Backgrounding during resolution.** On setup, type a valid number and tap Continue; while
-*Checking your number* is showing, switch to another app for a few seconds and come back. It
-should finish resolving once, not twice, and land on the same **Is this you?** panel. (There is no
-scenario digit that makes resolution itself slow — this checks that backgrounding mid-request
-doesn't duplicate the call, not a timing window.)
+**Backgrounding while adding.** Type a valid number and tap **Add**; while *Checking with PayShap*
+is showing, switch to another app for a few seconds and come back. It should finish once, not
+twice, and land on the PIN screen (or the list).
 
 **Backgrounding elsewhere.** On the status screen with voucher scenario 5, go to the home screen
-for 30 seconds and come back. It should poll straight away and carry on. On the PIN and setup
+for 30 seconds and come back. It should poll straight away and carry on. On the PIN and add
 screens, switch apps and return: what you typed is still there.
 
 **Back button (Android).**
 
 | Screen | Back does |
 |---|---|
-| First-run setup, PIN screen | leaves the app |
-| Setup, "Is this you?" panel | behaves as **No, change number** — never dismisses without a choice |
-| Change details | cancel, no save |
+| Register, first-run "How do you want to get paid?", PIN screen | leaves the app |
+| Adding a PayShap number or account | back to the choice or the list, nothing saved |
+| Where your money goes | back to where it was opened from, *Paying into* unchanged |
 | Confirm | returns to the PIN screen (blocked while Send is in flight) |
 | Status | always goes to the PIN screen, never to confirm |
 | Scan | returns to the PIN screen (its default stack parent — no special handling needed) |
@@ -209,7 +211,7 @@ screens, switch apps and return: what you typed is still there.
 The fake API makes no network calls, so airplane mode changes nothing while it is on. Two ways to
 see the offline behaviour:
 
-1. **A number ending in 6** (setup) or **a PIN ending in 4** (deposit) simulates no signal.
+1. **A PayShap number ending in 6** (adding) or **a PIN ending in 4** (deposit) simulates no signal.
 2. **Real client:** set `EXPO_PUBLIC_USE_FAKE_API=false` and `EXPO_PUBLIC_API_BASE_URL` to any
    unreachable address (for example `http://10.255.255.1`), restart with `--clear`, and try
    resolving a number, or enter any PIN. After up to 15 seconds you should see *No connection.
@@ -222,12 +224,12 @@ see the offline behaviour:
 
 - **Screen reader (TalkBack).** Every button, bank row and field is announced with a role and
   label. The PIN field announces *Voucher PIN, N of 16 digits entered*. Amounts are spoken as
-  *495 rand*. A ShapID destination is spoken as *082 123 4567 at Capitec*; an account destination
-  (the dormant fallback) as *account ending 4417 at Capitec* — neither is ever read as bullet
-  characters. The "Is this you?" panel reads in order: the question, the name, the bank, then the
-  two buttons.
+  *495 rand*. A PayShap number is spoken as *082 555 1234 at Capitec*; an account as *account
+  ending 4417 at Capitec* — neither is ever read as bullet characters. Each card on **Where your
+  money goes** reads its kind, name and where, says *paying into this one* when selected, and is a
+  radio button; **Remove** is its own button.
 - **130% font size.** Settings, Display, Font size. Every screen scrolls and nothing should clip or
-  overlap, including the setup screen with the bank picker revealed and an error showing. The PIN
+  overlap, including the add-PayShap screen with the bank picker revealed and an error showing. The PIN
   text deliberately stays at 24 sp (see below) and everything else scales.
 - **320 dp width.** On a phone or emulator, set the display to 320 dp wide (for example
   `adb shell wm size 640x1136` and `adb shell wm density 320`, undo with `wm size reset` and
@@ -257,15 +259,14 @@ see the offline behaviour:
 
 ## Known limits
 
-- **App killed mid-send, or mid-resolve.** If Android kills the app after Send (or after tapping
-  Continue on setup) but before the reply arrives, the deposit — or the resolution — may have
-  completed server-side while the app has no record of it. Reopening starts fresh either way: a
-  new lookup gets a new idempotency key, and setup simply asks again. The real backend refusing a
-  second redemption, or PayShap's own resolution being idempotent to repeat, is what keeps this
-  safe.
+- **App killed mid-send, or mid-add.** If Android kills the app after Send (or after tapping Add)
+  but before the reply arrives, the deposit — or the payout method — may exist server-side while
+  the app has no record of it. Reopening starts fresh either way: a new lookup gets a new
+  idempotency key, and adding the same number or account again returns the one already saved. The
+  real backend refusing a second redemption is what keeps this safe.
 - **Portrait lock and large screens.** Android 16 ignores orientation locks on screens 600 dp and
   wider. The layout is a centred column, so it still works.
-- **Reset to first run.** There is no reset button. Use Change details, or clear Expo Go's storage
+- **Reset to first run.** There is no reset button. Clear Expo Go's storage
   (Settings, Apps, Expo Go, Storage, Clear data).
 - **Fake API is per process.** It forgets which vouchers it has redeemed when the app restarts, but
   deposit status still works after a restart because the scenario and start time are in the id.

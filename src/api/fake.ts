@@ -28,17 +28,27 @@
  * Registration scenarios (the ID number's sequence digits, positions 7-10 of 13):
  *   8001010000081  sequence 0000  id_verification_failed
  *   8001010001089  sequence 0001  id_number_already_registered
- *   8001010002087  sequence 0002  shapid_name_mismatch
  *   8001010003085  sequence 0003  network error (simulates no signal)
  *   any other valid adult ID (e.g. 8001015009087)  registered
  *
- * `listMyDeposits` returns the deposits created since the app started: the fake has no
- * database, so after a reload the app's own saved history is what the user sees.
+ * Adding a PayShap number: the ShapID scenarios above, plus
+ *   5  shapid_name_mismatch (registered, but to someone else)
+ *   anything else  registered in the user's own name: "T. Mokoena" for Thabo Mokoena
+ * Adding a bank account (the account number's last digit):
+ *   9  account_not_found     8  account_holder_mismatch     anything else  verified
+ * At most 5 payout methods.
  *
- * Logs never contain the PIN, the ShapID or the ID number: only the scenario digits.
+ * The fake has no database: registered names, payout methods and the deposits listed by
+ * `listMyDeposits` last until the app reloads. The app keeps its own copies of both lists, so
+ * after a reload "Paying into" and history still show; the payout-methods screen then shows
+ * what was added since.
+ *
+ * Logs never contain the PIN, the ShapID, the ID number or an account number: only the
+ * scenario digits.
  */
 import { isBankId } from '../domain/banks';
 import { calculatePayout, FAKE_FLAT_FEE_CENTS, MIN_VOUCHER_CENTS } from '../domain/fees';
+import type { StoredDestination } from '../domain/destination';
 import { parseSaId } from '../domain/saId';
 import { formatRand, type Cents } from '../domain/money';
 import { ApiError } from './errors';
@@ -48,7 +58,8 @@ import type {
   Deposit,
   DepositRecord,
   DepositStatus,
-  Destination,
+  NewPayoutMethod,
+  PayoutMethod,
   RegisteredUser,
   Registration,
   ResolvedShapId,
@@ -152,7 +163,41 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
   /** last status logged per deposit, so polling logs transitions rather than every second */
   const lastLoggedStatus = new Map<string, DepositStatus>();
   /** deposit id -> where it was sent, for listMyDeposits; newest last */
-  const sentTo = new Map<string, Destination>();
+  const sentTo = new Map<string, StoredDestination>();
+  /** Saved payout methods, in the order added. */
+  let methods: PayoutMethod[] = [];
+  /** The registered user's names, to put on their own PayShap numbers and accounts. */
+  let registeredNames = 'Thabo Mokoena';
+
+  const MAX_METHODS = 5;
+
+  /** "Thabo Sipho Mokoena" -> "T. Mokoena": the masked name PayShap shows. */
+  const maskedName = (fullNames: string) => {
+    const parts = fullNames.split(' ');
+    return `${parts[0].charAt(0).toUpperCase()}. ${parts[parts.length - 1]}`;
+  };
+
+  /** Default first, then newest, as the server lists them. */
+  const listed = () => [...methods.filter((m) => m.isDefault), ...methods.filter((m) => !m.isDefault).reverse()];
+
+  function save(method: PayoutMethod, makeDefault: boolean): PayoutMethod {
+    const existing = methods.find((m) =>
+      m.kind === 'shapId' && method.kind === 'shapId'
+        ? m.shapId === method.shapId
+        : m.kind === 'account' && method.kind === 'account'
+          ? m.bankId === method.bankId && m.accountLast4 === method.accountLast4
+          : false,
+    );
+    const target = existing ?? method;
+    if (!existing) {
+      if (methods.length >= MAX_METHODS) throw ApiError.business('payout_method_limit');
+      methods.push(target);
+    }
+    if (makeDefault || methods.length === 1) {
+      methods = methods.map((m) => ({ ...m, isDefault: m.id === target.id }));
+    }
+    return methods.find((m) => m.id === target.id) ?? target;
+  }
 
   const randomChars = (radix: 16 | 36, length: number) =>
     Math.floor(random() * radix ** length)
@@ -250,7 +295,7 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
 
     async createDeposit(
       voucherToken: string,
-      destination: Destination,
+      payoutMethodId: string,
       idempotencyKey: string,
     ): Promise<Deposit> {
       await sleep(delayMs());
@@ -284,7 +329,13 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       const id = `${DEPOSIT_PREFIX}_${token.scenario}_${payoutCents}_${createdAt.toString(36)}_${code}`;
 
       depositByKey.set(idempotencyKey, id);
-      sentTo.set(id, destination);
+      // After a reload the fake has forgotten its methods; any id still pays (the app's own copy
+      // of the method is what history shows then).
+      const method = methods.find((m) => m.id === payoutMethodId);
+      if (method) {
+        const { id: _methodId, isDefault: _isDefault, ...destination } = method;
+        sentTo.set(id, destination);
+      }
       keyByToken.set(voucherToken, idempotencyKey);
       log(
         `[fake-api] createDeposit scenario ${token.scenario} -> new deposit KD-${code} ` +
@@ -316,20 +367,18 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
         log('[fake-api] registerUser sequence 0001 -> id_number_already_registered');
         throw ApiError.business('id_number_already_registered');
       }
-      if (sequence === '0002') {
-        log('[fake-api] registerUser sequence 0002 -> shapid_name_mismatch');
-        throw ApiError.business('shapid_name_mismatch');
-      }
       if (sequence === '0003') {
         log('[fake-api] registerUser sequence 0003 -> network error');
         throw ApiError.network('Simulated no signal');
       }
 
       log('[fake-api] registerUser -> registered');
+      registeredNames = registration.fullNames.replace(/\s+/g, ' ').trim();
+      methods = [];
       return {
         userId: `fku_${randomChars(36, 8)}`,
         accessToken: `fkt_${randomChars(36, 8)}${randomChars(36, 8)}`,
-        fullNames: registration.fullNames.replace(/\s+/g, ' ').trim(),
+        fullNames: registeredNames,
       };
     },
 
@@ -339,25 +388,110 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       for (const [id, destination] of sentTo) {
         const parts = decodeDepositId(id);
         if (!parts) continue;
-        const [, suffix] = destination.kind === 'shapId' ? destination.shapId.split('@') : [];
         records.push({
           ...viewDeposit(id),
           valueCents: parts.payoutCents + FAKE_FLAT_FEE_CENTS,
           feeCents: FAKE_FLAT_FEE_CENTS,
           createdAt: parts.createdAt,
-          destination:
-            destination.kind === 'shapId'
-              ? {
-                  kind: 'shapId',
-                  shapId: destination.shapId,
-                  shapName: 'M. Mothiba',
-                  bankId: suffix !== undefined && isBankId(suffix) ? suffix : 'capitec',
-                }
-              : destination,
+          destination,
         });
       }
       log(`[fake-api] listMyDeposits -> ${records.length} deposit(s)`);
       return records.reverse();
+    },
+
+    async listPayoutMethods(): Promise<PayoutMethod[]> {
+      await sleep(delayMs());
+      return listed();
+    },
+
+    async addPayoutMethod(input: NewPayoutMethod, makeDefault: boolean): Promise<PayoutMethod> {
+      await sleep(delayMs());
+      const id = `fkm_${randomChars(36, 8)}`;
+
+      if (input.kind === 'account') {
+        const digit = input.accountNumber.slice(-1);
+        if (input.accountNumber.length < 7 || input.accountNumber.length > 11) {
+          throw ApiError.business('invalid_account');
+        }
+        if (digit === '9') {
+          log('[fake-api] addPayoutMethod account scenario 9 -> account_not_found');
+          throw ApiError.business('account_not_found');
+        }
+        if (digit === '8') {
+          log('[fake-api] addPayoutMethod account scenario 8 -> account_holder_mismatch');
+          throw ApiError.business('account_holder_mismatch');
+        }
+        log(`[fake-api] addPayoutMethod account scenario ${digit} -> verified`);
+        return save(
+          {
+            id,
+            isDefault: false,
+            kind: 'account',
+            name: registeredNames,
+            accountLast4: input.accountNumber.slice(-4),
+            bankId: input.bankId,
+          },
+          makeDefault,
+        );
+      }
+
+      const [numberPart, rawSuffix] = input.shapId.split('@');
+      const digit = numberPart.slice(-1);
+      const scripted: Record<string, () => never> = {
+        '9': () => {
+          throw ApiError.business('shapid_not_found');
+        },
+        '8': () => {
+          throw ApiError.business('shapid_suspended');
+        },
+        '6': () => {
+          throw ApiError.network('Simulated no signal');
+        },
+        '5': () => {
+          throw ApiError.business('shapid_name_mismatch');
+        },
+      };
+      if (digit === '7' && rawSuffix === undefined) {
+        log('[fake-api] addPayoutMethod shapId scenario 7 -> shapid_ambiguous');
+        throw ApiError.business('shapid_ambiguous');
+      }
+      if (scripted[digit]) {
+        log(`[fake-api] addPayoutMethod shapId scenario ${digit} -> refused`);
+        scripted[digit]();
+      }
+      const bankId = rawSuffix !== undefined && isBankId(rawSuffix) ? rawSuffix : 'capitec';
+      log(`[fake-api] addPayoutMethod shapId scenario ${digit} -> added at ${bankId}`);
+      return save(
+        {
+          id,
+          isDefault: false,
+          kind: 'shapId',
+          shapId: input.shapId,
+          shapName: maskedName(registeredNames),
+          bankId,
+        },
+        makeDefault,
+      );
+    },
+
+    async setDefaultPayoutMethod(methodId: string): Promise<PayoutMethod[]> {
+      await sleep(delayMs());
+      if (!methods.some((m) => m.id === methodId)) throw ApiError.business('payout_method_not_found');
+      methods = methods.map((m) => ({ ...m, isDefault: m.id === methodId }));
+      return listed();
+    },
+
+    async removePayoutMethod(methodId: string): Promise<PayoutMethod[]> {
+      await sleep(delayMs());
+      const removed = methods.find((m) => m.id === methodId);
+      if (!removed) throw ApiError.business('payout_method_not_found');
+      methods = methods.filter((m) => m.id !== methodId);
+      if (removed.isDefault && methods.length > 0) {
+        const newest = methods[methods.length - 1];
+        methods = methods.map((m) => ({ ...m, isDefault: m.id === newest.id }));
+      }
+      return listed();
     },
   };
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { api } from '../src/api/client';
-import { toApiDestination } from '../src/api/types';
+import type { PayoutMethod } from '../src/api/types';
 import { Button } from '../src/components/Button';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
@@ -16,9 +16,8 @@ import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
 import { saveActiveDeposit } from '../src/storage/activeDeposit';
 import { recordRedemption } from '../src/storage/history';
-import { loadDestination } from '../src/storage/destination';
-import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
-import { borderWidth, colors, spacing, type } from '../src/theme';
+import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
+import { colors, radius, spacing, type } from '../src/theme';
 import {
   clearVoucherSession,
   currentVoucherSession,
@@ -31,7 +30,7 @@ import {
  */
 export default function ConfirmScreen() {
   const [session] = useState(currentVoucherSession);
-  const [destination, setDestination] = useState<StoredDestinationRecord | null>(null);
+  const [destination, setDestination] = useState<PayoutMethod | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
@@ -45,10 +44,10 @@ export default function ConfirmScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      loadDestination().then((saved) => {
+      loadDefaultPayoutMethod().then((saved) => {
         if (cancelled) return;
         if (saved) setDestination(saved);
-        else router.replace('/setup');
+        else router.replace('/payout-methods/add');
       });
       return () => {
         cancelled = true;
@@ -80,11 +79,7 @@ export default function ConfirmScreen() {
       // network, a double tap or a retry can never pay twice.
       const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
 
-      const created = await api.createDeposit(
-        session.lookup.voucherToken,
-        toApiDestination(destination),
-        idempotencyKey,
-      );
+      const created = await api.createDeposit(session.lookup.voucherToken, destination.id, idempotencyKey);
 
       const sentAt = Date.now();
       try {
@@ -162,7 +157,7 @@ export default function ConfirmScreen() {
           accessible
           accessibilityLabel={`${confirm.youReceive}, ${spokenRand(payoutCents)}`}
         >
-          <Text style={styles.rowLabel}>{confirm.youReceive}</Text>
+          <Text style={styles.receiveLabel}>{confirm.youReceive}</Text>
           <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
             {formatRand(payoutCents)}
           </Text>
@@ -198,9 +193,7 @@ export default function ConfirmScreen() {
         <Button
           variant="text"
           label={confirm.notMyDetails}
-          onPress={() =>
-            router.push({ pathname: '/setup', params: { mode: 'change', returnTo: 'confirm' } })
-          }
+          onPress={() => router.push('/payout-methods')}
           disabled={sending}
         />
       </View>
@@ -214,16 +207,21 @@ const styles = StyleSheet.create({
   row: { gap: spacing.xs },
   rowLabel: { ...type.label, color: colors.inkMuted },
   rowValue: { ...type.body, color: colors.ink },
-  // The one loud thing on the screen.
+  // The one loud thing on the screen: a white card, like a balance.
   receive: {
     gap: spacing.xs,
-    paddingVertical: spacing.lg,
-    borderTopWidth: borderWidth.thin,
-    borderBottomWidth: borderWidth.thin,
-    borderColor: colors.line,
+    padding: spacing.xl,
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
   },
-  amount: { ...type.amount, color: colors.ink },
-  paidInto: { gap: spacing.xs },
+  receiveLabel: { ...type.label, color: colors.onCardMuted },
+  amount: { ...type.amount, color: colors.onCard },
+  paidInto: {
+    gap: spacing.xs,
+    padding: spacing.lg,
+    borderRadius: radius.control,
+    backgroundColor: colors.surface,
+  },
   holder: { ...type.title, color: colors.ink },
   note: { ...type.body, color: colors.ink },
   actions: { gap: spacing.md },

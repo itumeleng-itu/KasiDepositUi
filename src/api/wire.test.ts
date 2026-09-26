@@ -2,10 +2,12 @@ import { BANKS } from '../domain/banks';
 import { ApiError } from './errors';
 import {
   BANK_API_CODES,
-  destinationToWire,
   interpretErrorResponse,
   parseDeposit,
+  newPayoutMethodToWire,
+  parseAddedPayoutMethod,
   parseDepositHistory,
+  parsePayoutMethods,
   parseRegisteredUser,
   parseResolvedShapId,
   parseVoucherLookup,
@@ -167,30 +169,55 @@ describe('bank mapping', () => {
   });
 });
 
-describe('destinationToWire', () => {
-  it('sends a ShapID destination as its pointer only', () => {
-    expect(destinationToWire({ kind: 'shapId', shapId: '+27821234567' })).toEqual({
-      kind: 'shap_id',
-      shap_id: '+27821234567',
-    });
-  });
-
-  it('sends a ShapID destination with its @suffix intact', () => {
-    expect(destinationToWire({ kind: 'shapId', shapId: '+27821234567@fnb' })).toEqual({
+describe('payout methods on the wire', () => {
+  it('sends a new PayShap number as its pointer, with the @suffix intact', () => {
+    expect(newPayoutMethodToWire({ kind: 'shapId', shapId: '+27821234567@fnb' }, true)).toEqual({
       kind: 'shap_id',
       shap_id: '+27821234567@fnb',
+      make_default: true,
     });
   });
 
-  it('sends an account destination in wire format (kept alive though nothing constructs it yet)', () => {
+  it('sends a new account with the provider bank code', () => {
     expect(
-      destinationToWire({
-        kind: 'account',
-        name: 'Thabo Mokoena',
-        accountNumber: '1234564417',
-        bankId: 'standard_bank',
-      }),
-    ).toEqual({ kind: 'account', name: 'Thabo Mokoena', account_number: '1234564417', bank: 'STANDARD_BANK' });
+      newPayoutMethodToWire({ kind: 'account', bankId: 'standard_bank', accountNumber: '1234564417' }, false),
+    ).toEqual({ kind: 'account', bank: 'STANDARD_BANK', account_number: '1234564417', make_default: false });
+  });
+
+  const shapRow = {
+    id: 'pm-1',
+    kind: 'shap_id',
+    bank: 'FNB',
+    is_default: true,
+    shap_id: '+27825551234',
+    shap_name: 'T. Mokoena',
+    account_holder: null,
+    account_last4: null,
+  };
+  const accountRow = {
+    id: 'pm-2',
+    kind: 'account',
+    bank: 'CAPITEC',
+    is_default: false,
+    shap_id: null,
+    shap_name: null,
+    account_holder: 'Thabo Mokoena',
+    account_last4: '4417',
+  };
+
+  it('parses the list into what the phone keeps: accounts by their last four digits only', () => {
+    expect(parsePayoutMethods({ payout_methods: [shapRow, accountRow] })).toEqual([
+      { id: 'pm-1', isDefault: true, kind: 'shapId', shapId: '+27825551234', shapName: 'T. Mokoena', bankId: 'fnb' },
+      { id: 'pm-2', isDefault: false, kind: 'account', name: 'Thabo Mokoena', accountLast4: '4417', bankId: 'capitec' },
+    ]);
+  });
+
+  it('drops a row it cannot read, and refuses a body without a list', () => {
+    expect(parsePayoutMethods({ payout_methods: [{ ...accountRow, bank: 'NOPE' }, shapRow] })).toHaveLength(1);
+    expect(thrown(() => parsePayoutMethods({}))).toMatchObject({ reason: 'unknown' });
+    expect(thrown(() => parseAddedPayoutMethod({ ...shapRow, is_default: 'yes' }))).toMatchObject({
+      reason: 'unknown',
+    });
   });
 });
 
@@ -213,8 +240,8 @@ describe('401: the phone is no longer registered', () => {
 describe('registration wire', () => {
   it('sends snake_case', () => {
     expect(
-      registrationToWire({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087', shapId: '+27821234567' }),
-    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087', shap_id: '+27821234567' });
+      registrationToWire({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087' }),
+    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087' });
   });
 
   it('parses the registered user', () => {

@@ -100,8 +100,8 @@ export default function ScanScreen() {
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={onBarcodeScanned}
       />
-      {/* A light panel, not a dark scrim: reuses the app's normal text and Button styling
-          (built for the paper background) rather than a one-off dark-mode variant. */}
+      {/* A bottom sheet in the app's own dark paper, so the normal text and Button styling
+          apply unchanged. */}
       <View style={[styles.panel, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Text style={styles.instruction}>{scan.instruction}</Text>
         {checking ? (
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: colors.paper,
-    borderTopLeftRadius: radius.control,
-    borderTopRightRadius: radius.control,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
     padding: spacing.lg,
     gap: spacing.md,
   },

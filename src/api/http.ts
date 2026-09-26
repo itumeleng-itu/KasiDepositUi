@@ -2,10 +2,12 @@ import { currentAccessToken } from '../storage/user';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import {
-  destinationToWire,
   interpretErrorResponse,
+  newPayoutMethodToWire,
+  parseAddedPayoutMethod,
   parseDeposit,
   parseDepositHistory,
+  parsePayoutMethods,
   parseRegisteredUser,
   parseResolvedShapId,
   parseVoucherLookup,
@@ -33,9 +35,9 @@ interface RequestOptions {
 /**
  * One request with a 15 s timeout. Anything that stops us getting a full response (offline,
  * DNS, timeout, aborted body) is a 'network' error; the caller never sees the raw failure,
- * which could contain the PIN or ID number from the request body.
+ * which could contain the PIN, ID number or account number from the request body.
  */
-async function request(method: 'GET' | 'POST', path: string, options: RequestOptions = {}) {
+async function request(method: 'GET' | 'POST' | 'DELETE', path: string, options: RequestOptions = {}) {
   const url = `${baseUrl()}${path}`;
   const token = options.auth === false ? null : await currentAccessToken();
   const controller = new AbortController();
@@ -88,9 +90,9 @@ export const httpApi: ApiClient = {
     return parseResolvedShapId(body);
   },
 
-  async createDeposit(voucherToken, destination, idempotencyKey) {
+  async createDeposit(voucherToken, payoutMethodId, idempotencyKey) {
     const body = await request('POST', '/deposits', {
-      body: { voucher_token: voucherToken, destination: destinationToWire(destination) },
+      body: { voucher_token: voucherToken, payout_method_id: payoutMethodId },
       headers: { 'Idempotency-Key': idempotencyKey },
     });
     return parseDeposit(body);
@@ -110,5 +112,25 @@ export const httpApi: ApiClient = {
   async listMyDeposits() {
     const body = await request('GET', '/me/deposits');
     return parseDepositHistory(body);
+  },
+
+  async listPayoutMethods() {
+    return parsePayoutMethods(await request('GET', '/me/payout-methods'));
+  },
+
+  async addPayoutMethod(method, makeDefault) {
+    const body = await request('POST', '/me/payout-methods', {
+      body: newPayoutMethodToWire(method, makeDefault),
+    });
+    return parseAddedPayoutMethod(body);
+  },
+
+  async setDefaultPayoutMethod(id) {
+    const body = await request('POST', `/me/payout-methods/${encodeURIComponent(id)}/default`);
+    return parsePayoutMethods(body);
+  },
+
+  async removePayoutMethod(id) {
+    return parsePayoutMethods(await request('DELETE', `/me/payout-methods/${encodeURIComponent(id)}`));
   },
 };

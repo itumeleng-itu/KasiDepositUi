@@ -4,11 +4,16 @@
  * ASSUMED contract (nothing on the backend exists yet; change here when it does):
  *   POST /vouchers/lookup   { pin }                                  -> voucher lookup
  *   GET  /shapid/{shapId}   (ShapID URL-encoded: + and @ survive)    -> resolved ShapID
- *   POST /deposits          { voucher_token, destination }           -> deposit
+ *   POST /deposits          { voucher_token, payout_method_id }      -> deposit
  *                           with an `Idempotency-Key` header
  *   GET  /deposits/{id}                                              -> deposit
- *   POST /users             { full_names, id_number, shap_id }       -> registered user
+ *   POST /users             { full_names, id_number }                -> registered user
  *   GET  /me/deposits                                                -> { deposits: [...] }
+ *   GET  /me/payout-methods                                          -> { payout_methods: [...] }
+ *   POST /me/payout-methods { kind: shap_id, shap_id } | { kind: account, bank, account_number }
+ *                           plus make_default                        -> payout method
+ *   POST /me/payout-methods/{id}/default                             -> { payout_methods: [...] }
+ *   DELETE /me/payout-methods/{id}                                   -> { payout_methods: [...] }
  *   Every call except POST /users and GET /shapid sends `Authorization: Bearer <token>`; a
  *   missing, unknown or revoked token is 401 `{ "reason": "not_registered" }`.
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
@@ -25,8 +30,9 @@ import {
   type ClearingFailure,
   type Deposit,
   type DepositRecord,
+  type NewPayoutMethod,
+  type PayoutMethod,
   type DepositStatus,
-  type Destination,
   type FailureReason,
   type RegisteredUser,
   type Registration,
@@ -89,15 +95,15 @@ function isCents(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value);
 }
 
-export function destinationToWire(destination: Destination) {
-  if (destination.kind === 'shapId') {
-    return { kind: 'shap_id', shap_id: destination.shapId };
+export function newPayoutMethodToWire(method: NewPayoutMethod, makeDefault: boolean) {
+  if (method.kind === 'shapId') {
+    return { kind: 'shap_id', shap_id: method.shapId, make_default: makeDefault };
   }
   return {
     kind: 'account',
-    name: destination.name,
-    account_number: destination.accountNumber,
-    bank: BANK_API_CODES[destination.bankId],
+    bank: BANK_API_CODES[method.bankId],
+    account_number: method.accountNumber,
+    make_default: makeDefault,
   };
 }
 
@@ -183,7 +189,6 @@ export function registrationToWire(registration: Registration) {
   return {
     full_names: registration.fullNames,
     id_number: registration.idNumber,
-    shap_id: registration.shapId,
   };
 }
 
@@ -206,8 +211,11 @@ function bankIdOf(code: unknown): BankId | undefined {
   return (Object.keys(BANK_API_CODES) as BankId[]).find((id) => BANK_API_CODES[id] === code);
 }
 
-/** The wire destination of a past deposit, with the name it resolved to, as the app stores it. */
-function parseRecordDestination(value: unknown) {
+/**
+ * A destination on the wire (a past deposit's, or a payout method's), as the app stores it.
+ * Accounts arrive as their last four digits only; the server never sends the full number.
+ */
+function parseWireDestination(value: unknown) {
   if (!isRecord(value)) return null;
   const bankId = bankIdOf(value.bank);
   if (value.kind === 'shap_id') {
@@ -221,8 +229,8 @@ function parseRecordDestination(value: unknown) {
   if (value.kind === 'account') {
     return parseStoredDestination({
       kind: 'account',
-      name: value.name,
-      accountNumber: value.account_number,
+      name: value.name ?? value.account_holder,
+      accountLast4: value.account_last4,
       bankId,
     });
   }
@@ -233,7 +241,7 @@ function parseDepositRecord(value: unknown): DepositRecord | null {
   if (!isRecord(value) || !isCents(value.value_cents) || !isCents(value.fee_cents)) return null;
   const createdAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : NaN;
   if (!Number.isFinite(createdAt)) return null;
-  const destination = parseRecordDestination(value.destination);
+  const destination = parseWireDestination(value.destination);
   if (destination === null) return null;
   let deposit: Deposit;
   try {
@@ -253,4 +261,25 @@ export function parseDepositHistory(body: unknown): DepositRecord[] {
   return body.deposits
     .map(parseDepositRecord)
     .filter((record): record is DepositRecord => record !== null);
+}
+
+function parsePayoutMethod(value: unknown): PayoutMethod | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || value.id.length === 0) return null;
+  if (typeof value.is_default !== 'boolean') return null;
+  const destination = parseWireDestination(value);
+  return destination === null ? null : { ...destination, id: value.id, isDefault: value.is_default };
+}
+
+export function parseAddedPayoutMethod(body: unknown): PayoutMethod {
+  const method = parsePayoutMethod(body);
+  if (method === null) throw malformed();
+  return method;
+}
+
+/** As with history, one unreadable entry is dropped rather than hiding the rest. */
+export function parsePayoutMethods(body: unknown): PayoutMethod[] {
+  if (!isRecord(body) || !Array.isArray(body.payout_methods)) throw malformed();
+  return body.payout_methods
+    .map(parsePayoutMethod)
+    .filter((method): method is PayoutMethod => method !== null);
 }

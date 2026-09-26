@@ -29,7 +29,7 @@ const shapIdRedemption: Redemption = {
 
 const accountRedemption: Redemption = {
   ...shapIdRedemption,
-  destination: { kind: 'account', name: 'Thabo Mokoena', accountNumber: '1234564417', bankId: 'capitec' },
+  destination: { kind: 'account', name: 'Thabo Mokoena', accountLast4: '4417', bankId: 'capitec' },
 };
 
 const failedRedemption: Redemption = {

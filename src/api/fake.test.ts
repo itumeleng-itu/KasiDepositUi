@@ -1,14 +1,9 @@
 import { calculatePayout, FAKE_FLAT_FEE_CENTS } from '../domain/fees';
 import { ApiError } from './errors';
 import { createFakeApi, randomDelayMs } from './fake';
-import type { Destination } from './types';
 
-const destination: Destination = {
-  kind: 'account',
-  name: 'Thabo Mokoena',
-  accountNumber: '1234564417',
-  bankId: 'capitec',
-};
+/** A saved payout method's id. The fake pays any id; deposits don't depend on which. */
+const destination = 'fkm_test';
 
 const pinEndingIn = (digit: number) => `123456789012345${digit}`;
 const shapIdEndingIn = (digit: number, suffix?: string) =>
@@ -170,11 +165,7 @@ describe('fake API: idempotency', () => {
     const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
 
     const first = await api.createDeposit(voucherToken, destination, 'key-1');
-    const second = await api.createDeposit(
-      voucherToken,
-      { ...destination, accountNumber: '9999999999' },
-      'key-1',
-    );
+    const second = await api.createDeposit(voucherToken, 'fkm_another', 'key-1');
 
     expect(second.id).toBe(first.id);
   });
@@ -304,7 +295,6 @@ describe('fake API: registerUser scenarios', () => {
   const registration = (idNumber: string) => ({
     fullNames: '  Thabo   Mokoena ',
     idNumber,
-    shapId: '+27821234560',
   });
 
   function registeringSetup() {
@@ -325,7 +315,6 @@ describe('fake API: registerUser scenarios', () => {
   it.each([
     ['8001010000081', 'id_verification_failed'],
     ['8001010001089', 'id_number_already_registered'],
-    ['8001010002087', 'shapid_name_mismatch'],
     ['8001015009088', 'id_number_invalid'],
     ['0809275001083', 'id_number_under_age'],
   ])('%s -> %s', async (id, reason) => {
@@ -344,16 +333,96 @@ describe('fake API: registerUser scenarios', () => {
   });
 });
 
+describe('fake API: payout methods', () => {
+  async function registered() {
+    const s = setup();
+    s.clock.now = Date.UTC(2026, 8, 26);
+    await s.api.registerUser({ fullNames: 'Thabo Sipho Mokoena', idNumber: '8001015009087' });
+    return s;
+  }
+
+  it("adds the user's own PayShap number in their masked name, as the default", async () => {
+    const { api } = await registered();
+    const added = await api.addPayoutMethod({ kind: 'shapId', shapId: '+27825551234@fnb' }, false);
+    expect(added).toMatchObject({
+      kind: 'shapId',
+      shapId: '+27825551234@fnb',
+      shapName: 'T. Mokoena',
+      bankId: 'fnb',
+      isDefault: true,
+    });
+    expect(await api.listPayoutMethods()).toEqual([added]);
+  });
+
+  it.each([
+    [shapIdEndingIn(5), 'shapid_name_mismatch'],
+    [shapIdEndingIn(9), 'shapid_not_found'],
+    [shapIdEndingIn(8), 'shapid_suspended'],
+    [shapIdEndingIn(7), 'shapid_ambiguous'],
+  ])('refuses %s: %s', async (shapId, reason) => {
+    const { api } = await registered();
+    expect(await rejection(api.addPayoutMethod({ kind: 'shapId', shapId }, true))).toMatchObject({
+      kind: 'business',
+      reason,
+    });
+    expect(await api.listPayoutMethods()).toEqual([]);
+  });
+
+  it('adds an account in the registered name, keeping only its last four digits', async () => {
+    const { api, logs } = await registered();
+    const added = await api.addPayoutMethod(
+      { kind: 'account', bankId: 'absa', accountNumber: '1234564417' },
+      false,
+    );
+    expect(added).toMatchObject({ kind: 'account', name: 'Thabo Sipho Mokoena', accountLast4: '4417' });
+    expect(JSON.stringify(added)).not.toContain('1234564417');
+    expect(logs.join('\n')).not.toContain('1234564417');
+  });
+
+  it.each([
+    ['1234564419', 'account_not_found'],
+    ['1234564418', 'account_holder_mismatch'],
+    ['12345', 'invalid_account'],
+  ])('refuses account %s: %s', async (accountNumber, reason) => {
+    const { api } = await registered();
+    const refused = api.addPayoutMethod({ kind: 'account', bankId: 'absa', accountNumber }, true);
+    expect(await rejection(refused)).toMatchObject({ kind: 'business', reason });
+  });
+
+  it('switches the default, promotes on removal, returns duplicates, and stops at five', async () => {
+    const { api } = await registered();
+    const shap = await api.addPayoutMethod({ kind: 'shapId', shapId: '+27825551234' }, false);
+    const account = await api.addPayoutMethod({ kind: 'account', bankId: 'fnb', accountNumber: '1234564417' }, true);
+    expect((await api.listPayoutMethods()).map((m) => [m.id, m.isDefault])).toEqual([
+      [account.id, true],
+      [shap.id, false],
+    ]);
+    expect((await api.setDefaultPayoutMethod(shap.id))[0].id).toBe(shap.id);
+    expect(await api.removePayoutMethod(shap.id)).toEqual([{ ...account, isDefault: true }]);
+    expect((await api.addPayoutMethod({ kind: 'account', bankId: 'fnb', accountNumber: '1234564417' }, false)).id).toBe(
+      account.id,
+    );
+    for (const last of [0, 1, 2, 3]) {
+      await api.addPayoutMethod({ kind: 'account', bankId: 'absa', accountNumber: `123456440${last}` }, false);
+    }
+    const sixth = api.addPayoutMethod({ kind: 'account', bankId: 'absa', accountNumber: '1234564405' }, false);
+    expect(await rejection(sixth)).toMatchObject({ reason: 'payout_method_limit' });
+  });
+});
+
 describe('fake API: listMyDeposits', () => {
-  it('lists deposits created this session, newest first, with what was sent', async () => {
+  it('lists deposits created this session, newest first, with where each went', async () => {
     const { api, clock } = setup();
-    const shapIdDestination: Destination = { kind: 'shapId', shapId: '+27821234560@fnb' };
+    clock.now = Date.UTC(2026, 8, 26);
+    await api.registerUser({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087' });
+    const shap = await api.addPayoutMethod({ kind: 'shapId', shapId: '+27825551234@fnb' }, true);
+    const account = await api.addPayoutMethod({ kind: 'account', bankId: 'capitec', accountNumber: '1234564417' }, false);
 
     const first = await api.lookupVoucher(pinEndingIn(0));
-    const a = await api.createDeposit(first.voucherToken, shapIdDestination, 'key-a');
+    const a = await api.createDeposit(first.voucherToken, shap.id, 'key-a');
     clock.now += 1000;
     const second = await api.lookupVoucher(pinEndingIn(2));
-    const b = await api.createDeposit(second.voucherToken, destination, 'key-b');
+    const b = await api.createDeposit(second.voucherToken, account.id, 'key-b');
 
     const listed = await api.listMyDeposits();
     expect(listed.map((d) => d.id)).toEqual([b.id, a.id]);
@@ -361,8 +430,13 @@ describe('fake API: listMyDeposits', () => {
       valueCents: 50000,
       feeCents: FAKE_FLAT_FEE_CENTS,
       payoutCents: calculatePayout(50000, FAKE_FLAT_FEE_CENTS),
-      destination: { kind: 'shapId', shapId: '+27821234560@fnb', shapName: 'M. Mothiba', bankId: 'fnb' },
+      destination: { kind: 'shapId', shapId: '+27825551234@fnb', shapName: 'T. Mokoena', bankId: 'fnb' },
     });
-    expect(listed[0].destination).toEqual(destination);
+    expect(listed[0].destination).toEqual({
+      kind: 'account',
+      name: 'Thabo Mokoena',
+      accountLast4: '4417',
+      bankId: 'capitec',
+    });
   });
 });

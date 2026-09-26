@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
+import type { PayoutMethod } from '../src/api/types';
 import { Button } from '../src/components/Button';
 import { DestinationLine } from '../src/components/DestinationLine';
 import { DigitsField } from '../src/components/DigitsField';
 import { Screen } from '../src/components/Screen';
 import { deposit } from '../src/copy';
 import { PIN_GROUPING, PIN_LENGTH } from '../src/domain/pin';
-import { loadDestination } from '../src/storage/destination';
-import type { StoredDestinationRecord } from '../src/storage/destinationRecord';
+import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
 import { colors, PIN_MAX_FONT_SCALE, spacing, type } from '../src/theme';
 import { attemptVoucherLookup } from '../src/voucherLookup';
 
@@ -19,7 +19,7 @@ import { attemptVoucherLookup } from '../src/voucherLookup';
  * opaque voucher token moves on.
  */
 export default function DepositScreen() {
-  const [destination, setDestination] = useState<StoredDestinationRecord | null>(null);
+  const [destination, setDestination] = useState<PayoutMethod | null>(null);
   const [digits, setDigits] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,10 +29,10 @@ export default function DepositScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      loadDestination().then((saved) => {
+      loadDefaultPayoutMethod().then((saved) => {
         if (cancelled) return;
         if (saved) setDestination(saved);
-        else router.replace('/setup');
+        else router.replace({ pathname: '/payout-methods/add', params: { next: 'deposit' } });
       });
       return () => {
         cancelled = true;
@@ -62,9 +62,7 @@ export default function DepositScreen() {
       {destination ? (
         <DestinationLine
           destination={destination}
-          onChange={() =>
-            router.push({ pathname: '/setup', params: { mode: 'change', returnTo: 'deposit' } })
-          }
+          onChange={() => router.push('/payout-methods')}
         />
       ) : null}
 
