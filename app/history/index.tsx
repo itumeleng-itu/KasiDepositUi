@@ -79,7 +79,13 @@ function HistoryRow({ item }: { item: Redemption }) {
     >
       <View style={styles.rowTop}>
         <Text style={styles.amount}>{formatRand(item.payoutCents)}</Text>
-        <Text style={[styles.status, item.status === 'failed' && styles.statusFailed]}>
+        <Text
+          style={[
+            styles.status,
+            item.status === 'completed' && styles.statusDone,
+            item.status === 'failed' && styles.statusFailed,
+          ]}
+        >
           {statusLabel}
         </Text>
       </View>
@@ -111,13 +117,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   amount: { ...type.title, color: colors.ink },
-  status: { ...type.label, color: colors.ink },
-  // No red: a failed row is marked by weight and an outline, and by its words.
-  statusFailed: {
-    paddingHorizontal: spacing.sm,
-    borderWidth: borderWidth.thin,
-    borderColor: colors.ink,
+  // A pill chip. Paid is filled green; Not sent is outlined in the error colour, so the two
+  // differ by shape and words as well as colour.
+  status: {
+    ...type.label,
+    color: colors.ink,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     borderRadius: radius.chip,
+    overflow: 'hidden',
+    backgroundColor: colors.paper,
+  },
+  statusDone: { color: colors.onPrimary, backgroundColor: colors.primary },
+  statusFailed: {
+    color: colors.error,
+    backgroundColor: colors.errorTint,
+    borderWidth: borderWidth.thin,
+    borderColor: colors.error,
   },
   detail: { ...type.caption, color: colors.inkMuted },
   note: { ...type.caption, color: colors.inkMuted },

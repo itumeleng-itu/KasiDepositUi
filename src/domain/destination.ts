@@ -1,16 +1,16 @@
-import { lastFour, maskAccountNumber, validateAccountNumber } from './account';
+import { maskAccountNumber } from './account';
 import { bankName, isBankId, type BankId } from './banks';
-import { validateName } from './name';
+import { FULL_NAMES_MAX } from './name';
 import { displayShapId, maskedShapId, parseShapId } from './shapId';
 
 /**
- * A resolved, describable destination — what is actually saved and shown, as opposed to the
- * wire-level `Destination` in `src/api/types.ts` (used for `createDeposit`), which for the
- * ShapID kind carries only the pointer, not the name resolution learned from it.
+ * Where money goes, as the phone knows it: enough to describe it, never enough to misuse it.
+ * A bank account is only its holder, bank and last four digits — the full number lives on the
+ * server, encrypted, and the phone never holds it after it has been added.
  */
 export type StoredDestination =
   | { kind: 'shapId'; shapId: string; shapName: string; bankId: BankId }
-  | { kind: 'account'; name: string; accountNumber: string; bankId: BankId };
+  | { kind: 'account'; name: string; accountLast4: string; bankId: BankId };
 
 export interface DestinationDescription {
   /** The name to show first: the scheme-masked name, or the account holder's name. */
@@ -25,7 +25,7 @@ export interface DestinationDescription {
 
 /** Just the masked number, with no bank name attached — composes into any phrasing a screen wants. */
 export function maskedIdentifier(d: StoredDestination): string {
-  return d.kind === 'shapId' ? maskedShapId(d.shapId) : maskAccountNumber(d.accountNumber);
+  return d.kind === 'shapId' ? maskedShapId(d.shapId) : maskAccountNumber(d.accountLast4);
 }
 
 /**
@@ -51,17 +51,13 @@ export function parseStoredDestination(value: unknown): StoredDestination | null
   }
 
   if (record.kind === 'account') {
-    const { name, accountNumber, bankId } = record;
-    if (typeof name !== 'string' || validateName(name) !== null) return null;
-    if (
-      typeof accountNumber !== 'string' ||
-      !/^\d+$/.test(accountNumber) ||
-      validateAccountNumber(accountNumber) !== null
-    ) {
+    const { name, accountLast4, bankId } = record;
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > FULL_NAMES_MAX) {
       return null;
     }
+    if (typeof accountLast4 !== 'string' || !/^\d{4}$/.test(accountLast4)) return null;
     if (!isBankId(bankId)) return null;
-    return { kind: 'account', name, accountNumber, bankId };
+    return { kind: 'account', name, accountLast4, bankId };
   }
 
   return null;
@@ -79,11 +75,11 @@ export function describeDestination(d: StoredDestination): DestinationDescriptio
       spokenOneLine: `${local} at ${bank}`,
     };
   }
-  const masked = maskAccountNumber(d.accountNumber);
+  const masked = maskAccountNumber(d.accountLast4);
   return {
     primary: d.name,
     secondary: `${bank} · ${masked}`,
     oneLine: `${masked} · ${bank}`,
-    spokenOneLine: `account ending ${lastFour(d.accountNumber)} at ${bank}`,
+    spokenOneLine: `account ending ${d.accountLast4} at ${bank}`,
   };
 }

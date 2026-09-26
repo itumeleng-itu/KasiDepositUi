@@ -47,7 +47,7 @@ export function serialiseRedemption(redemption: Redemption): string {
   const snapshot: StoredDestination =
     destination.kind === 'shapId'
       ? { kind: 'shapId', shapId: destination.shapId, shapName: destination.shapName, bankId: destination.bankId }
-      : { kind: 'account', name: destination.name, accountNumber: destination.accountNumber, bankId: destination.bankId };
+      : { kind: 'account', name: destination.name, accountLast4: destination.accountLast4, bankId: destination.bankId };
   return JSON.stringify({ version: VERSION, ...redemption, destination: snapshot });
 }
 

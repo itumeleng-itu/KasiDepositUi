@@ -13,7 +13,7 @@ import { formatRand, spokenRand } from '../../src/domain/money';
 import { isTerminal } from '../../src/polling';
 import { loadRedemption, updateRedemptionStatus } from '../../src/storage/history';
 import type { Redemption } from '../../src/storage/historyRecord';
-import { borderWidth, colors, size, spacing, type } from '../../src/theme';
+import { colors, radius, size, spacing, type } from '../../src/theme';
 
 type Loaded = { kind: 'loading' } | { kind: 'missing' } | { kind: 'found'; item: Redemption };
 
@@ -110,7 +110,7 @@ export default function RedemptionScreen() {
           accessible
           accessibilityLabel={`${history.received}, ${spokenRand(item.payoutCents)}`}
         >
-          <Text style={styles.rowLabel}>{history.received}</Text>
+          <Text style={styles.receiveLabel}>{history.received}</Text>
           <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
             {formatRand(item.payoutCents)}
           </Text>
@@ -175,12 +175,13 @@ const styles = StyleSheet.create({
   rowLabel: { ...type.label, color: colors.inkMuted },
   rowValue: { ...type.body, color: colors.ink },
   holder: { ...type.title, color: colors.ink },
+  // The one loud thing on the screen: a white card, like a balance.
   receive: {
     gap: spacing.xs,
-    paddingVertical: spacing.lg,
-    borderTopWidth: borderWidth.thin,
-    borderBottomWidth: borderWidth.thin,
-    borderColor: colors.line,
+    padding: spacing.xl,
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
   },
-  amount: { ...type.amount, color: colors.ink },
+  receiveLabel: { ...type.label, color: colors.onCardMuted },
+  amount: { ...type.amount, color: colors.onCard },
 });

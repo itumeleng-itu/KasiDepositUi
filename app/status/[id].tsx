@@ -22,7 +22,7 @@ import {
   STILL_PROCESSING_AFTER_MS,
 } from '../../src/polling';
 import { clearActiveDeposit, loadActiveDeposit } from '../../src/storage/activeDeposit';
-import { loadDestination } from '../../src/storage/destination';
+import { loadDefaultPayoutMethod } from '../../src/storage/payoutMethods';
 import { loadRedemption, updateRedemptionStatus } from '../../src/storage/history';
 import { colors, size, spacing, type } from '../../src/theme';
 
@@ -48,7 +48,7 @@ export default function StatusScreen() {
   // history (when opened from "Your deposits"), then the saved details and "now".
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadActiveDeposit(), loadRedemption(id), loadDestination()])
+    Promise.all([loadActiveDeposit(), loadRedemption(id), loadDefaultPayoutMethod()])
       .then(([active, past, saved]) => {
         if (cancelled) return;
         const mine = active && active.depositId === id ? active : null;

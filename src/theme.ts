@@ -3,33 +3,40 @@ import type { TextStyle } from 'react-native';
 /**
  * Design tokens. Components use only these values: no inline magic numbers.
  *
- * Black, white and grey only. Because there is no red or green, state is carried by shape,
- * weight and words: an icon and a message for errors, a tick for done, a heavy border for
- * selected. Nothing depends on colour to be understood.
+ * A dark, near-black canvas with one mint-green accent for the main action, selection and
+ * success; the loudest number on a screen sits on a white card. Colour is never the only
+ * signal: errors still carry an icon and words, done still carries a tick, selected still
+ * carries a heavy border and a check.
  *
  * Contrast (WCAG 2.x). Every pair the app draws is checked in theme.test.ts:
- *   ink on paper 21:1, on surface 19.3:1, on tint 17.6:1   muted ink on paper 6.7:1, on surface 6.1:1
- *   white on primary 21:1   white-on-disabled n/a: disabled text 5.5:1 on its fill
- *   field border (line) 4.5:1 on paper, 4.2:1 on surface (non-text needs 3:1)
+ *   ink on paper 19.1:1, on surface 16.6:1, on tint 13.1:1   muted ink on paper 8.4:1, on surface 7.3:1
+ *   dark on primary 10.6:1   primary on paper 10.6:1   error on paper 8.7:1
+ *   ink on card 19.1:1, muted 6.2:1   disabled text 5.2:1 on its fill
+ *   field border (line) 3.9:1 on paper, 3.4:1 on surface (non-text needs 3:1)
  */
 export const colors = {
-  paper: '#FFFFFF',
-  /** Fields, bank rows and quiet panels. */
-  surface: '#F5F5F5',
-  ink: '#000000',
-  inkMuted: '#5C5C5C',
-  primary: '#000000',
-  onPrimary: '#FFFFFF',
+  /** The screen background. */
+  paper: '#0E100E',
+  /** Fields, bank rows, history rows and quiet panels. */
+  surface: '#1C1F1C',
+  ink: '#FFFFFF',
+  inkMuted: '#A7ADA7',
+  /** Mint green: primary buttons, links, focus, selection. */
+  primary: '#86D38A',
+  onPrimary: '#0E100E',
   /** Selected row and pressed rows. */
-  primaryTint: '#EBEBEB',
-  /** Kept as tokens so a colour can be reintroduced in one place; today they are ink and grey. */
-  success: '#000000',
-  successTint: '#F5F5F5',
-  error: '#000000',
-  errorTint: '#F5F5F5',
-  line: '#767676',
-  disabled: '#E3E3E3',
-  onDisabled: '#595959',
+  primaryTint: '#233524',
+  success: '#86D38A',
+  successTint: '#233524',
+  error: '#FF8F87',
+  errorTint: '#3A2220',
+  line: '#6B726B',
+  disabled: '#2A2E2A',
+  onDisabled: '#9AA09A',
+  /** The white hero card that holds the one big amount on a screen. */
+  card: '#FFFFFF',
+  onCard: '#0E100E',
+  onCardMuted: '#5C635C',
 } as const;
 
 /** 4-point scale. */
@@ -44,13 +51,15 @@ export const spacing = {
 } as const;
 
 /**
- * Buttons are pills (half their height); inputs, rows and panels share one softer radius; chips
- * are tighter still.
+ * Buttons and chips are pills; hero cards are as round as the buttons; inputs, rows and panels
+ * share one slightly softer radius.
  */
 export const radius = {
   pill: 28,
-  control: 16,
-  chip: 6,
+  /** Hero cards and the scan panel. */
+  card: 28,
+  control: 20,
+  chip: 999,
 } as const;
 
 export const size = {

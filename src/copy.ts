@@ -5,6 +5,7 @@
  */
 import { MIN_VOUCHER_CENTS } from './domain/fees';
 import { formatRand, spokenAmounts, spokenRand, type Cents } from './domain/money';
+import { ACCOUNT_MAX, ACCOUNT_MIN, type AccountError } from './domain/account';
 import type { FullNamesError } from './domain/name';
 import { MIN_AGE_YEARS, type SaIdError } from './domain/saId';
 import type { ShapIdFormatReason } from './domain/shapId';
@@ -30,46 +31,13 @@ export const common = {
   noConnectionPolling: "No connection — we'll keep trying",
 } as const;
 
-export const setup = {
-  titleFirstRun: 'Where should your money go?',
-  titleChange: 'Change where your money goes',
-  titleRegister: 'Check your PayShap number',
-  helper: 'Your cellphone number, as registered with your bank for PayShap.',
-  numberLabel: 'Cellphone number',
-  bankPickerLabel: 'Bank',
-  continue: 'Continue',
-  checking: 'Checking your number',
-  cancel: common.cancel,
-  privacyNote: 'Saved on this phone only. We never ask for your banking PIN or password.',
-  saveFailed: "We couldn't save your details on this phone. Try again.",
-  saving: 'Saving',
-  /** Per-field error, shown once the field has been left. Doubles as the format failure message. */
-  parseError: {
-    empty: 'Enter your cellphone number.',
-    format: "That doesn't look like a South African mobile number.",
-    unknown_bank: "We don't recognise that bank. Choose one from the list.",
-  } satisfies Record<ShapIdFormatReason, string>,
-  /** Shown under the disabled Continue button, even before the field has been touched. */
-  unmet: {
-    empty: 'Enter your cellphone number.',
-    format: 'Enter a valid cellphone number.',
-    unknown_bank: 'Choose a bank you recognise.',
-  } satisfies Record<ShapIdFormatReason, string>,
-  confirmTitle: 'Is this you?',
-  confirmYes: 'Yes, save this',
-  confirmNo: 'No, change number',
-  confirmYesRegister: 'Yes, register me',
-} as const;
-
 export const register = {
   title: 'Register',
-  helper: 'We need these once, to check it is really you. Use the details on your ID.',
+  helper: 'We need these once, to know it is really you. Use the details on your ID.',
   fullNamesLabel: 'Full names',
   fullNamesHelper: 'All your names and surname, as on your ID.',
   idNumberLabel: 'SA ID number',
   idNumberHelper: 'The 13 digits on your green ID book or smart ID card.',
-  numberLabel: 'PayShap cellphone number',
-  numberHelper: 'The number registered with your bank for PayShap. Your money is paid here.',
   continue: 'Continue',
   privacyNote:
     'Your ID number is sent to us once to verify you with Home Affairs. It is not saved on this phone.',
@@ -89,10 +57,70 @@ export const register = {
     under_age: `You must be ${MIN_AGE_YEARS} or older to use KasiDeposit.`,
   } satisfies Record<SaIdError, string>,
   /** Shown under the disabled Continue button, even before a field has been touched. */
-  unmet: 'Fill in all three to continue.',
-  /** On the confirm step, when registering fails for a reason that means editing the details. */
-  editDetails: 'Change my details',
+  unmet: 'Fill in both to continue.',
   registering: 'Registering',
+} as const;
+
+/** Where the user is paid: choosing, adding and switching between PayShap numbers and accounts. */
+export const payout = {
+  chooseTitle: 'How do you want to get paid?',
+  chooseHelper: 'You can add more later and choose which one to use.',
+  payShapTitle: 'PayShap',
+  payShapBody: 'Your cellphone number, if it is set up for PayShap in your banking app.',
+  accountTitle: 'Bank account',
+  accountBody: 'Your bank and account number, in your own name.',
+  chooseLabel: (title: string, body: string) => `${title}. ${body}`,
+
+  listTitle: 'Where your money goes',
+  listHelper: 'Tap one to pay into it.',
+  empty: "You haven't added anywhere to be paid yet.",
+  payingInto: 'Paying into',
+  kind: { shapId: 'PayShap', account: 'Bank account' },
+  cardLabel: (kind: string, primary: string, spokenOneLine: string, selected: boolean) =>
+    `${kind}, ${primary}, ${spokenOneLine}${selected ? ', paying into this one' : ''}`,
+  cardHint: 'Pays into this one',
+  remove: 'Remove',
+  removeLabel: (spokenOneLine: string) => `Remove ${spokenOneLine}`,
+  removeTitle: 'Remove this?',
+  removeBody: (oneLine: string) => `You won't be able to pay into ${oneLine} until you add it again.`,
+  addPayShap: 'Add a PayShap number',
+  addAccount: 'Add a bank account',
+  offline: "No connection. Showing what's saved on this phone.",
+  changeFailed: "We couldn't change that. Check your connection and try again.",
+
+  addPayShapTitle: 'Your PayShap number',
+  addPayShapHelper: 'The cellphone number you set up for PayShap in your banking app. It must be in your name.',
+  numberLabel: 'Cellphone number',
+  bankPickerLabel: 'Which bank is it set up at?',
+  addAccountTitle: 'Your bank account',
+  addAccountHelper: 'The account must be in your own name. We check this with your bank.',
+  holderLabel: 'Account holder',
+  bankLabel: 'Bank',
+  accountLabel: 'Account number',
+  add: 'Add',
+  checkingPayShap: 'Checking with PayShap',
+  checkingAccount: 'Checking with your bank',
+  useAccountInstead: 'Use a bank account instead',
+  usePayShapInstead: 'Use PayShap instead',
+  accountPrivacy: 'Your account number is sent once and kept encrypted. It is never saved on this phone.',
+  /** Per-field error, shown once the field has been left. */
+  parseError: {
+    empty: 'Enter your cellphone number.',
+    format: "That doesn't look like a South African mobile number.",
+    unknown_bank: "We don't recognise that bank. Choose one from the list.",
+  } satisfies Record<ShapIdFormatReason, string>,
+  /** Shown under the disabled Add button, even before the field has been touched. */
+  unmet: {
+    empty: 'Enter your cellphone number.',
+    format: 'Enter a valid cellphone number.',
+    unknown_bank: 'Choose a bank you recognise.',
+  } satisfies Record<ShapIdFormatReason, string>,
+  accountError: {
+    required: 'Enter your account number.',
+    too_short: `An account number has at least ${ACCOUNT_MIN} digits.`,
+    too_long: `An account number has at most ${ACCOUNT_MAX} digits.`,
+  } satisfies Record<AccountError, string>,
+  accountUnmet: 'Choose your bank and enter the account number.',
 } as const;
 
 export const deposit = {
@@ -144,7 +172,7 @@ export const confirm = {
   paidIntoSpoken: (primary: string, spokenOneLine: string) => `Paid into ${primary}, ${spokenOneLine}`,
   sendLabel: (payoutCents: Cents) => `Send ${spokenRand(payoutCents)}`,
   sending: 'Sending',
-  notMyDetails: "These aren't my details",
+  notMyDetails: 'Pay into a different account',
   tooSmall: `This voucher is too small to deposit. The minimum is ${MIN_VOUCHER}.`,
   /** Fee is shown as a deduction. U+2212 minus sign. */
   feeDisplay: (feeCents: Cents) => `− ${formatRand(feeCents)}`,
@@ -286,10 +314,18 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
   id_number_under_age: `You must be ${MIN_AGE_YEARS} or older to use KasiDeposit.`,
   id_verification_failed:
     "We couldn't verify these details with Home Affairs. Check your names and ID number match your ID.",
+  invalid_registration: 'Check your names. Use the names on your ID, with letters only.',
+  registration_unavailable: "We can't register anyone right now. Try again later.",
+  invalid_account: "That doesn't look like a valid account number. Check it in your banking app.",
+  account_not_found: "We couldn't find that account at that bank. Check the bank and the account number.",
+  account_holder_mismatch: 'This account is not in your name. Use an account in your own name.',
+  accounts_unavailable: "We can't add bank accounts right now. Try again later, or use PayShap.",
+  payout_method_limit: 'You can save up to 5. Remove one to add another.',
+  payout_method_not_found: 'That one was already removed. Choose another.',
   id_number_already_registered:
     'This ID number is already registered with different details. Check your details, or contact support.',
   shapid_name_mismatch:
-    'This PayShap number belongs to someone else. Use a number registered in your own name.',
+    'This PayShap number is registered to someone else. Use a number in your own name, or a bank account.',
   not_registered: 'You need to register again on this phone to continue.',
 } satisfies Record<FailureReason, string>;
 

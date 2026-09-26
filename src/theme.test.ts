@@ -15,17 +15,15 @@ function contrast(a: string, b: string): number {
 }
 
 describe('palette', () => {
-  it('is black, white and grey only (every channel equal)', () => {
-    for (const [name, hex] of Object.entries(colors)) {
-      const [r, g, b] = [1, 3, 5].map((i) => hex.slice(i, i + 2));
-      expect([name, r === g && g === b]).toEqual([name, true]);
-    }
+  it('has one accent: primary and success are the same green', () => {
+    expect(colors.success).toBe(colors.primary);
+    expect(colors.successTint).toBe(colors.primaryTint);
   });
 
-  it('never leans on colour to tell success from error: both are plain ink', () => {
-    // State is carried by icons, weight and words, so these may share a value.
-    expect(colors.success).toBe(colors.ink);
-    expect(colors.error).toBe(colors.ink);
+  it('is dark: the background is darker than every panel drawn on it', () => {
+    for (const panel of [colors.surface, colors.primaryTint, colors.disabled, colors.card]) {
+      expect(luminance(colors.paper)).toBeLessThan(luminance(panel));
+    }
   });
 });
 
@@ -37,7 +35,7 @@ describe('colour contrast', () => {
     ['ink on primary tint', colors.ink, colors.primaryTint],
     ['muted ink on paper', colors.inkMuted, colors.paper],
     ['muted ink on surface', colors.inkMuted, colors.surface],
-    ['white on primary button', colors.onPrimary, colors.primary],
+    ['dark on primary button', colors.onPrimary, colors.primary],
     ['white on disabled button', colors.onDisabled, colors.disabled],
     ['primary on paper (text buttons)', colors.primary, colors.paper],
     ['primary on surface (secondary button)', colors.primary, colors.surface],
@@ -47,6 +45,9 @@ describe('colour contrast', () => {
     ['error on paper', colors.error, colors.paper],
     ['error on surface', colors.error, colors.surface],
     ['error on error tint', colors.error, colors.errorTint],
+    ['ink on hero card', colors.onCard, colors.card],
+    ['muted ink on hero card', colors.onCardMuted, colors.card],
+    ['ink on disabled fill', colors.ink, colors.disabled],
   ])('%s meets 4.5:1', (_name, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
   });

@@ -5,28 +5,24 @@ import type { Cents } from '../domain/money';
 export type { BankId, Cents };
 
 /**
- * What `createDeposit` is told to pay. The ShapID kind carries only the pointer, not the name
- * resolution learned from it during setup (that lives in `StoredDestination`, domain/destination.ts).
- * Stored and transmitted in E.164: +27821234567, or +27821234567@fnb when bank-qualified.
- *
- * The `account` branch is never constructed by any screen today — every documented South
- * African payout API (Peach Payouts, Stitch Disbursements) addresses by account number and
- * universal branch code and none exposes proxy payout, so a real provider may force this
- * fallback. It is kept alive as a config change rather than something to rebuild later.
+ * Where a user can be paid: a PayShap number or a bank account, saved on the server and checked
+ * when it was added (the number is registered for PayShap in the user's own name; the account
+ * belongs to the user's ID number). A deposit is sent to one by `id`. On the phone an account is
+ * only its holder, bank and last four digits: the full number never comes back.
  */
-export type Destination =
-  | { kind: 'shapId'; shapId: string }
-  | { kind: 'account'; name: string; accountNumber: string; bankId: BankId };
+export type PayoutMethod = StoredDestination & {
+  id: string;
+  /** The one "Paying into" uses. Exactly one method is the default whenever there are any. */
+  isDefault: boolean;
+};
 
 /**
- * What a stored, resolved destination becomes on the wire: drops `shapName` (the server already
- * knows it — it is what resolved it) and the storage bookkeeping fields (resolvedAt, savedAt).
+ * What adding a payout method sends. The account number is sent once, here, and never stored on
+ * the phone. A ShapID is E.164, +27821234567, or +27821234567@fnb when bank-qualified.
  */
-export function toApiDestination(stored: StoredDestination): Destination {
-  return stored.kind === 'shapId'
-    ? { kind: 'shapId', shapId: stored.shapId }
-    : { kind: 'account', name: stored.name, accountNumber: stored.accountNumber, bankId: stored.bankId };
-}
+export type NewPayoutMethod =
+  | { kind: 'shapId'; shapId: string }
+  | { kind: 'account'; bankId: BankId; accountNumber: string };
 
 export interface ResolvedShapId {
   /**
@@ -104,37 +100,53 @@ export const VOUCHER_FAILURE_REASONS: Record<VoucherFailure, true> = {
 };
 
 /**
- * Registration and the signed-in session. Like identity failures these happen before any money
- * moves, so they never carry the reassurance. `not_registered` can come back from any call that
- * needs a user (the session on this phone was revoked or never existed): register again.
+ * Registration, the signed-in session, and adding payout methods. Like identity failures these
+ * happen before any money moves, so they never carry the reassurance. `not_registered` can come
+ * back from any call that needs a user (the session on this phone was revoked or never
+ * existed): register again.
  */
 export type RegistrationFailure =
   | 'id_number_invalid'
   | 'id_number_under_age'
   | 'id_verification_failed'
   | 'id_number_already_registered'
+  | 'invalid_registration'
+  | 'registration_unavailable'
+  | 'not_registered'
   | 'shapid_name_mismatch'
-  | 'not_registered';
+  | 'invalid_account'
+  | 'account_not_found'
+  | 'account_holder_mismatch'
+  | 'accounts_unavailable'
+  | 'payout_method_limit'
+  | 'payout_method_not_found';
 
 export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
   id_number_invalid: true,
   id_number_under_age: true,
   id_verification_failed: true,
   id_number_already_registered: true,
-  shapid_name_mismatch: true,
+  invalid_registration: true,
+  registration_unavailable: true,
   not_registered: true,
+  shapid_name_mismatch: true,
+  invalid_account: true,
+  account_not_found: true,
+  account_holder_mismatch: true,
+  accounts_unavailable: true,
+  payout_method_limit: true,
+  payout_method_not_found: true,
 };
 
 export type FailureReason = IdentityFailure | ClearingFailure | VoucherFailure | RegistrationFailure;
 
 /**
- * What registering sends. The ID number is sent once, here, and never stored on the phone. The
- * ShapID has already been resolved and confirmed by the user ("Is this you?") before this call.
+ * What registering sends: who the user is. Where they are paid is added afterwards, as a payout
+ * method. The ID number is sent once, here, and never stored on the phone.
  */
 export interface Registration {
   fullNames: string;
   idNumber: string;
-  shapId: string;
 }
 
 export interface RegisteredUser {

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { loadActiveDeposit } from '../src/storage/activeDeposit';
-import { loadDestination } from '../src/storage/destination';
+import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
 import { loadUser } from '../src/storage/user';
 import { colors } from '../src/theme';
 
@@ -23,7 +23,9 @@ export default function Launcher() {
         if (active) {
           target = { pathname: '/status/[id]', params: { id: active.depositId } };
         } else if (await loadUser()) {
-          target = (await loadDestination()) ? '/deposit' : '/setup';
+          target = (await loadDefaultPayoutMethod())
+            ? '/deposit'
+            : { pathname: '/payout-methods/add', params: { next: 'deposit' } };
         }
       } catch {
         // Storage trouble: fall through to registering rather than leaving a blank screen.

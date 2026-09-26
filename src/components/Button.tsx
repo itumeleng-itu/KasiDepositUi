@@ -53,7 +53,7 @@ export function Button({
     >
       <View style={styles.content}>
         {loading && <ActivityIndicator color={textColor} />}
-        <Text style={[styles.label, variant === 'text' && styles.labelText, { color: textColor }]}>
+        <Text style={[styles.label, { color: textColor }]}>
           {shownLabel}
         </Text>
       </View>
@@ -63,6 +63,7 @@ export function Button({
 
 function labelColor(variant: Variant, disabled: boolean): string {
   if (variant === 'primary') return disabled ? colors.onDisabled : colors.onPrimary;
+  if (variant === 'secondary') return disabled ? colors.inkMuted : colors.ink;
   return disabled ? colors.inkMuted : colors.primary;
 }
 
@@ -85,18 +86,17 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.primary },
   primaryDisabled: { backgroundColor: colors.disabled },
   secondary: {
-    backgroundColor: colors.paper,
-    borderWidth: borderWidth.thick,
-    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    borderWidth: borderWidth.thin,
+    borderColor: colors.line,
   },
   secondaryDisabled: {
     backgroundColor: colors.paper,
-    borderWidth: borderWidth.thick,
-    borderColor: colors.line,
+    borderWidth: borderWidth.thin,
+    borderColor: colors.disabled,
   },
   pressed: { opacity: opacity.pressed },
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  // Text buttons are marked as links by the green accent and the semibold weight.
   label: { ...type.body, fontFamily: fontFamily.semibold, textAlign: 'center' },
-  // With no colour to say "this is a link", text buttons are underlined.
-  labelText: { textDecorationLine: 'underline' },
 });
