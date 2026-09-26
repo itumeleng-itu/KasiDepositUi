@@ -14,6 +14,9 @@
  *                           plus make_default                        -> payout method
  *   POST /me/payout-methods/{id}/default                             -> { payout_methods: [...] }
  *   DELETE /me/payout-methods/{id}                                   -> { payout_methods: [...] }
+ *   GET  /branch-codes/{code}                                        -> { bank, bank_name }
+ *                           PLACEHOLDER: the branch-code API is still to come; `bank` is a
+ *                           BANK_API_CODES value, or null for a bank we can't pay into
  *   Every call except POST /users and GET /shapid sends `Authorization: Bearer <token>`; a
  *   missing, unknown or revoked token is 401 `{ "reason": "not_registered" }`.
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
@@ -27,6 +30,7 @@ import {
   IDENTITY_FAILURE_REASONS,
   REGISTRATION_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
+  type BranchCodeLookup,
   type ClearingFailure,
   type Deposit,
   type DepositRecord,
@@ -159,6 +163,13 @@ export function parseResolvedShapId(body: unknown): ResolvedShapId {
   );
   if (!bankId) throw malformed();
   return { shapName: body.shap_name, bankId };
+}
+
+export function parseBranchCodeLookup(body: unknown): BranchCodeLookup {
+  if (!isRecord(body) || typeof body.bank_name !== 'string' || body.bank_name.length === 0) {
+    throw malformed();
+  }
+  return { bankName: body.bank_name, bankId: bankIdOf(body.bank) ?? null };
 }
 
 export function parseDeposit(body: unknown): Deposit {

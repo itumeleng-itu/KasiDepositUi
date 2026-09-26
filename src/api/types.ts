@@ -36,6 +36,14 @@ export interface ResolvedShapId {
   bankId: BankId;
 }
 
+/** What a branch code belongs to. */
+export interface BranchCodeLookup {
+  /** The bank's name as the directory gives it, e.g. "Grindrod Bank". Shown as-is. */
+  bankName: string;
+  /** Null when it is a real bank we can't pay into yet. */
+  bankId: BankId | null;
+}
+
 export interface VoucherLookup {
   voucherToken: string; // opaque handle from the server; the PIN is not needed again after lookup
   valueCents: Cents;
@@ -119,7 +127,8 @@ export type RegistrationFailure =
   | 'account_holder_mismatch'
   | 'accounts_unavailable'
   | 'payout_method_limit'
-  | 'payout_method_not_found';
+  | 'payout_method_not_found'
+  | 'branch_code_not_found';
 
 export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
   id_number_invalid: true,
@@ -136,6 +145,7 @@ export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
   accounts_unavailable: true,
   payout_method_limit: true,
   payout_method_not_found: true,
+  branch_code_not_found: true,
 };
 
 export type FailureReason = IdentityFailure | ClearingFailure | VoucherFailure | RegistrationFailure;

@@ -10,38 +10,51 @@ interface BankListProps {
   selected: BankId | null;
   onSelect: (id: BankId) => void;
   error?: string | null;
+  /** Which banks to show, in order. Every bank when left out. */
+  bankIds?: readonly BankId[];
+  /** Adds a last row for any other bank, e.g. "Other bank". */
+  other?: { label: string; selected: boolean; onSelect: () => void };
 }
 
 /**
  * All banks as full-width rows, not a native dropdown (too small and fiddly on cheap phones).
  * Selected is a thick border, a tint and a check icon, never colour alone.
  */
-export function BankList({ label, selected, onSelect, error }: BankListProps) {
+export function BankList({ label, selected, onSelect, error, bankIds, other }: BankListProps) {
+  const banks = bankIds ? BANKS.filter((bank) => bankIds.includes(bank.id)) : BANKS;
   return (
     <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel={label}>
       <Text style={styles.label}>{label}</Text>
-      {BANKS.map((bank) => {
-        const isSelected = bank.id === selected;
-        return (
-          <Pressable
-            key={bank.id}
-            onPress={() => onSelect(bank.id)}
-            accessibilityRole="radio"
-            accessibilityLabel={bank.name}
-            accessibilityState={{ checked: isSelected, selected: isSelected }}
-            style={({ pressed }) => [
-              styles.row,
-              isSelected ? styles.rowSelected : styles.rowIdle,
-              pressed && styles.rowPressed,
-            ]}
-          >
-            <Text style={[styles.name, isSelected && styles.nameSelected]}>{bank.name}</Text>
-            {isSelected && <Icon name="check" color={colors.primary} />}
-          </Pressable>
-        );
-      })}
+      {banks.map((bank) => (
+        <BankRow
+          key={bank.id}
+          name={bank.name}
+          selected={bank.id === selected && !other?.selected}
+          onPress={() => onSelect(bank.id)}
+        />
+      ))}
+      {other ? <BankRow name={other.label} selected={other.selected} onPress={other.onSelect} /> : null}
       {error ? <InlineError message={error} /> : null}
     </View>
+  );
+}
+
+function BankRow({ name, selected, onPress }: { name: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={name}
+      accessibilityState={{ checked: selected, selected }}
+      style={({ pressed }) => [
+        styles.row,
+        selected ? styles.rowSelected : styles.rowIdle,
+        pressed && styles.rowPressed,
+      ]}
+    >
+      <Text style={[styles.name, selected && styles.nameSelected]}>{name}</Text>
+      {selected && <Icon name="check" color={colors.primary} />}
+    </Pressable>
   );
 }
 

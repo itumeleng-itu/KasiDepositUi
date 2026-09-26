@@ -70,12 +70,26 @@ on the till page's *PayShap numbers (demo)* first — see the API README):
 | `...7` | *...registered at more than one bank...* and the bank list appears; tap one to add it there. |
 | `...6` | *No connection. Check your data and try again.* Never implies the number is wrong. |
 
-**Bank account.** The holder is your registered name, shown and not editable. Choose a bank and
-type the account number (grouped as you type). The account number's last digit picks the scenario:
+For `...5`, `...9` and `...8` the **Add** button disappears and **Use a bank account instead** is
+the only button: registering a number on PayShap happens in the user's banking app, not here.
+Edit the number and **Add** comes back.
+
+**Bank account.** The holder is your registered name, shown and not editable. Only four banks are
+listed (Capitec, FNB, Absa, Standard Bank) plus **Other bank**. The account number must have the
+right number of digits for the bank: Capitec and Nedbank 10, FNB, African Bank and Investec 11,
+Standard Bank 9 or 11, Absa 8 to 11 (e.g. *Capitec account numbers have 10 digits.*); other banks
+accept 7 to 11.
+
+**Other bank** shows a *Branch code* field. At 6 digits it looks the bank up (fake API: each
+bank's universal code, e.g. `198765` Nedbank, `678910` TymeBank; `584000` is Grindrod Bank, which
+we can't pay into yet and offers **Use PayShap instead**; any other code is *We couldn't find that
+branch code...*). On the real API the branch-code endpoint is a placeholder until it is provided.
+
+The account number's last digit picks the scenario:
 
 | Account number ends in | What should happen |
 |---|---|
-| `...0` to `...7`, e.g. `1234 564 417` | Added as **Thabo Mokoena · Capitec · ••••4417**. |
+| `...0` to `...7`, e.g. `1234 564 417` at Capitec | Added as **Thabo Mokoena · Capitec · ••••4417**. |
 | `...9` | *We couldn't find that account at that bank...* |
 | `...8` | *This account is not in your name...* and **Use PayShap instead**. |
 
@@ -87,7 +101,7 @@ into*, and a deposit to it still works.
 ## Your deposits
 
 **Your deposits** on the PIN screen lists deposits newest first: amount received, status in words
-(*Sending*, *On its way*, *Paid*, *Not sent*), where it went, and when. Tap a row for the details:
+(*Sending*, *On its way*, *Sent*, *Not sent*), where it went, and when. Tap a row for the details:
 amount received, voucher value, fee, paid into, sent at, and a selectable reference. A deposit
 that hadn't finished when last seen checks its latest status on open and offers **Follow this
 deposit**.
@@ -105,12 +119,12 @@ PIN below works repeatedly, because the fake hands out a fresh voucher on each l
 
 | PIN | Ends in | Voucher | What should happen |
 |---|---|---|---|
-| `1234 5678 9012 3450` | 0 | R500.00, fee R5.00 | Confirm shows **R495.00**. Status: *Sending your money*, then *On its way* (about 1.5 s), then **R495.00 is in your account** (about 3 s, plus a poll). One success haptic. |
+| `1234 5678 9012 3450` | 0 | R500.00, fee R5.00 | Confirm shows **R495.00**. Status: *Sending your money*, then *On its way* (about 1.5 s), then **R495.00 sent** (about 3 s, plus a poll). One success haptic. |
 | `1234 5678 9012 3451` | 1 | already used | Stays on the PIN screen: *This voucher has already been used.* PIN stays in the field. |
 | `1234 5678 9012 3452` | 2 | R200.00 | Confirm **R195.00**. Ends *We couldn't send this deposit. We couldn't send this right now. Your money is safe and hasn't been lost.* with **Try again later**. |
 | `1234 5678 9012 3453` | 3 | R1 000.00 | Confirm **R995.00**. Ends *We couldn't send this deposit. The bank is temporarily unavailable. Your money is safe and hasn't been lost.* with **Try again**. |
 | `1234 5678 9012 3454` | 4 | no signal | *No connection. Check your data and try again.* on the PIN screen. Never says the voucher is bad. |
-| `1234 5678 9012 3455` | 5 | R50.00 | Confirm **R45.00**. Stays *On its way*, becomes **Still processing** at 90 s (never "failed"), then **R45.00 is in your account** at about 101 s. |
+| `1234 5678 9012 3455` | 5 | R50.00 | Confirm **R45.00**. Stays *On its way*, becomes **Still processing** at 90 s (never "failed"), then **R45.00 sent** at about 101 s. |
 | `1234 5678 9012 3456` | 6 | R8.00 | Lookup works. Confirm shows *This voucher is too small to deposit. The minimum is R10.00.* and a disabled **Can't send this voucher**. |
 | `1234 5678 9012 3457` to `...3459` | 7, 8, 9 | not found | *We couldn't find that PIN. Check each digit against your till slip.* |
 
@@ -122,7 +136,7 @@ shows a selectable **Reference: KD-XXXXXX**.
 
 The PIN screen's **Scan voucher QR** button opens the camera. A scan never sends money by
 itself: it does exactly what typing the PIN and tapping Continue does — look the voucher up,
-then show the same confirm screen. Nothing is sent until Send is tapped.
+then show the same confirm screen. Nothing is sent until Deposit is tapped.
 
 - **Fake API.** Any QR generator can make one. Encode
   `kasideposit://redeem?pin=<16 digits>` — the PIN's last digit picks the fake scenario, exactly
@@ -133,7 +147,7 @@ then show the same confirm screen. Nothing is sent until Send is tapped.
 Cases to walk through:
 
 - **A good scan.** It reaches the confirm screen with the right amount, and nothing is sent
-  until Send is tapped.
+  until Deposit is tapped.
 - **An already-used voucher.** Scan a QR for a voucher that has already been redeemed: the same
   *This voucher has already been used* message appears, and the camera resumes scanning.
 - **A non-KasiDeposit QR.** Point it at any other QR code (a website, a WhatsApp contact, ...):
@@ -153,7 +167,7 @@ one haptic, then the PIN screen shows *Paying into 082 555 1234 · Capitec*.
 
 **Someone else's number, then an account.** Register, choose PayShap and type a number ending in
 `5`: *This PayShap number is registered to someone else...* Tap **Use a bank account instead**:
-the account screen opens with your name as holder. Add `1234 564 417` at any bank: the PIN screen
+the account screen opens with your name as holder. Add `1234 564 417` at Capitec: the PIN screen
 shows *Paying into ••••4417 · <bank>*.
 
 **The ambiguous path.** Add a number ending in `7`: the bank list appears under the message. Tap a
@@ -179,11 +193,11 @@ Backspace over a space: one digit goes. Paste `PIN: 1234-5678-9012-3456 thanks`:
 Paste 17 digits: *That doesn't look like a 16-digit PIN* and nothing changes. Continue is disabled
 until exactly 16. (Unchanged by the ShapID migration — verify it still works exactly as before.)
 
-**Resume after close.** Use voucher scenario 5. Tap Send, then fully close the app (swipe it away)
+**Resume after close.** Use voucher scenario 5. Tap Deposit, then fully close the app (swipe it away)
 and reopen it. It should land on the status screen mid-deposit, then finish. After the result has
 been shown, reopening goes to the PIN screen.
 
-**Double tap.** Tap **Send** twice quickly. The terminal must show exactly one
+**Double tap.** Tap **Deposit** twice quickly. The terminal must show exactly one
 `createDeposit ... new deposit` line. Idempotency itself (same key, same deposit, two requests at
 once, changed destination) is covered by `src/api/fake.test.ts`.
 
@@ -202,7 +216,7 @@ screens, switch apps and return: what you typed is still there.
 | Register, first-run "How do you want to get paid?", PIN screen | leaves the app |
 | Adding a PayShap number or account | back to the choice or the list, nothing saved |
 | Where your money goes | back to where it was opened from, *Paying into* unchanged |
-| Confirm | returns to the PIN screen (blocked while Send is in flight) |
+| Confirm | returns to the PIN screen (blocked while Deposit is in flight) |
 | Status | always goes to the PIN screen, never to confirm |
 | Scan | returns to the PIN screen (its default stack parent — no special handling needed) |
 
@@ -216,7 +230,7 @@ see the offline behaviour:
    unreachable address (for example `http://10.255.255.1`), restart with `--clear`, and try
    resolving a number, or enter any PIN. After up to 15 seconds you should see *No connection.
    Check your data and try again.* On confirm the message also says your money is safe, and
-   pressing Send again reuses the same idempotency key. On the status screen, turn airplane mode
+   pressing Deposit again reuses the same idempotency key. On the status screen, turn airplane mode
    on mid-deposit: the status stays, and a small *No connection — we'll keep trying* line appears
    and goes away when the signal returns.
 
@@ -250,7 +264,7 @@ see the offline behaviour:
 | Safe areas | every screen is inside `Screen` (safe-area-context) | notched device |
 | Android back, incl. the confirmation panel | per screen, see table | **yes** |
 | Rotation | **locked to portrait** (`app.json`): on a small phone a landscape keyboard leaves about 100 dp of screen, unusable for PIN entry | none |
-| Backgrounding, incl. mid-resolution | state is React state; a ref guards `resolveShapId` and `createDeposit` against a duplicate call the same way Send already is; polling pauses and resumes | **yes** |
+| Backgrounding, incl. mid-resolution | state is React state; a ref guards `resolveShapId` and `createDeposit` against a duplicate call the same way Deposit already is; polling pauses and resumes | **yes** |
 | Airplane mode, no crash or blank | network errors map to the message; screens never wait on a failed load; a render crash shows a recovery screen | **yes** (real client) |
 | No unhandled rejections | every promise is awaited in a try/catch or has a catch | watch the Metro log |
 | No console warnings | none known | watch the Metro log |
@@ -259,7 +273,7 @@ see the offline behaviour:
 
 ## Known limits
 
-- **App killed mid-send, or mid-add.** If Android kills the app after Send (or after tapping Add)
+- **App killed mid-send, or mid-add.** If Android kills the app after Deposit (or after tapping Add)
   but before the reply arrives, the deposit — or the payout method — may exist server-side while
   the app has no record of it. Reopening starts fresh either way: a new lookup gets a new
   idempotency key, and adding the same number or account again returns the one already saved. The

@@ -111,27 +111,32 @@ export default function AddPayShapScreen() {
       ) : null}
 
       <View style={styles.actions}>
-        <Button
-          label={payout.add}
-          loadingLabel={payout.checkingPayShap}
-          onPress={onAdd}
-          disabled={!parsed.ok}
-          loading={adding}
-        />
-        {!parsed.ok && unmet ? (
-          <Text style={styles.unmet} accessibilityLiveRegion="polite">
-            {unmet}
-          </Text>
-        ) : null}
         {offerAccount ? (
+          // This number can't be used, and registering it on PayShap happens in the user's
+          // banking app, not here: the only way forward from us is a bank account. Editing the
+          // number brings Add back.
           <Button
-            variant="secondary"
             label={payout.useAccountInstead}
             onPress={() =>
               router.replace({ pathname: '/payout-methods/add-account', params: next ? { next } : {} })
             }
           />
-        ) : null}
+        ) : (
+          <>
+            <Button
+              label={payout.add}
+              loadingLabel={payout.checkingPayShap}
+              onPress={onAdd}
+              disabled={!parsed.ok}
+              loading={adding}
+            />
+            {!parsed.ok && unmet ? (
+              <Text style={styles.unmet} accessibilityLiveRegion="polite">
+                {unmet}
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
     </Screen>
   );
