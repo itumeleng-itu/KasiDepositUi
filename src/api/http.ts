@@ -5,6 +5,7 @@ import {
   interpretErrorResponse,
   newPayoutMethodToWire,
   parseAddedPayoutMethod,
+  parseBranchCodeLookup,
   parseDeposit,
   parseDepositHistory,
   parsePayoutMethods,
@@ -82,6 +83,12 @@ export const httpApi: ApiClient = {
   async lookupVoucher(pin) {
     const body = await request('POST', '/vouchers/lookup', { body: { pin } });
     return parseVoucherLookup(body);
+  },
+
+  async lookupBranchCode(branchCode) {
+    // PLACEHOLDER endpoint until the branch-code API is provided; see wire.ts.
+    const body = await request('GET', `/branch-codes/${encodeURIComponent(branchCode)}`, { auth: false });
+    return parseBranchCodeLookup(body);
   },
 
   async resolveShapId(shapId) {

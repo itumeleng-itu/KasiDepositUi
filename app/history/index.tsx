@@ -7,7 +7,7 @@ import { Screen } from '../../src/components/Screen';
 import { common, formatSentAt, history } from '../../src/copy';
 import { describeDestination } from '../../src/domain/destination';
 import { formatRand } from '../../src/domain/money';
-import { syncHistory } from '../../src/storage/history';
+import { loadHistory, syncHistory } from '../../src/storage/history';
 import type { Redemption } from '../../src/storage/historyRecord';
 import { borderWidth, colors, opacity, radius, size, spacing, type } from '../../src/theme';
 
@@ -18,16 +18,27 @@ import { borderWidth, colors, opacity, radius, size, spacing, type } from '../..
 export default function HistoryScreen() {
   const [items, setItems] = useState<Redemption[] | null>(null);
   const [phoneOnly, setPhoneOnly] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
-  // Runs again when we come back from a detail screen, which may have refreshed a status.
+  // What this phone saved shows at once; the server's list is merged in when it arrives. Runs
+  // again when we come back from a detail screen, which may have refreshed a status.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      syncHistory().then((result) => {
-        if (cancelled) return;
-        setItems(result.items);
-        setPhoneOnly(result.fromPhoneOnly);
-      });
+      setSyncing(true);
+      loadHistory()
+        .then((local) => {
+          if (cancelled) return null;
+          // An empty phone copy waits for the server rather than flashing "no deposits yet".
+          if (local.length > 0) setItems(local);
+          return syncHistory(local);
+        })
+        .then((result) => {
+          if (cancelled || result === null) return;
+          setItems(result.items);
+          setPhoneOnly(result.fromPhoneOnly);
+          setSyncing(false);
+        });
       return () => {
         cancelled = true;
       };
@@ -41,6 +52,12 @@ export default function HistoryScreen() {
       <Text accessibilityRole="header" style={styles.title}>
         {history.title}
       </Text>
+
+      {syncing ? (
+        <Text style={styles.note} accessibilityLiveRegion="polite">
+          {history.syncing}
+        </Text>
+      ) : null}
 
       {phoneOnly ? (
         <Text style={styles.note} accessibilityLiveRegion="polite">

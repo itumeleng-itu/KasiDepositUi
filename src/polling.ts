@@ -40,18 +40,19 @@ export function screenState(status: DepositStatus | null, elapsedMs: number): St
 export type StepState = 'done' | 'current' | 'todo';
 
 /**
- * The stepped indicator across the happy path: checked, sent, arrived. Null for a failed deposit,
- * which is not on that path.
+ * The stepped indicator across the happy path: checked, then sent. It stops at sent because we
+ * are never told when the money lands in the account. Null for a failed deposit, which is not on
+ * that path.
  */
-export function progressSteps(status: DepositStatus | null): [StepState, StepState, StepState] | null {
+export function progressSteps(status: DepositStatus | null): [StepState, StepState] | null {
   switch (status) {
     case null:
     case 'pending':
-      return ['current', 'todo', 'todo'];
+      return ['current', 'todo'];
     case 'submitted':
-      return ['done', 'done', 'current'];
+      return ['done', 'current'];
     case 'completed':
-      return ['done', 'done', 'done'];
+      return ['done', 'done'];
     case 'failed':
       return null;
   }

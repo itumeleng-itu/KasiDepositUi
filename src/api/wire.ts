@@ -7,13 +7,16 @@
  *   POST /deposits          { voucher_token, payout_method_id }      -> deposit
  *                           with an `Idempotency-Key` header
  *   GET  /deposits/{id}                                              -> deposit
- *   POST /users             { full_names, id_number }                -> registered user
+ *   POST /users             { full_names, id_number, privacy_notice_version } -> registered user
  *   GET  /me/deposits                                                -> { deposits: [...] }
  *   GET  /me/payout-methods                                          -> { payout_methods: [...] }
  *   POST /me/payout-methods { kind: shap_id, shap_id } | { kind: account, bank, account_number }
  *                           plus make_default                        -> payout method
  *   POST /me/payout-methods/{id}/default                             -> { payout_methods: [...] }
  *   DELETE /me/payout-methods/{id}                                   -> { payout_methods: [...] }
+ *   GET  /branch-codes/{code}                                        -> { bank, bank_name }
+ *                           PLACEHOLDER: the branch-code API is still to come; `bank` is a
+ *                           BANK_API_CODES value, or null for a bank we can't pay into
  *   Every call except POST /users and GET /shapid sends `Authorization: Bearer <token>`; a
  *   missing, unknown or revoked token is 401 `{ "reason": "not_registered" }`.
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
@@ -21,12 +24,14 @@
  */
 import type { BankId } from '../domain/banks';
 import { parseStoredDestination } from '../domain/destination';
+import { PRIVACY_NOTICE_VERSION } from '../privacy';
 import { ApiError } from './errors';
 import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
   REGISTRATION_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
+  type BranchCodeLookup,
   type ClearingFailure,
   type Deposit,
   type DepositRecord,
@@ -161,6 +166,13 @@ export function parseResolvedShapId(body: unknown): ResolvedShapId {
   return { shapName: body.shap_name, bankId };
 }
 
+export function parseBranchCodeLookup(body: unknown): BranchCodeLookup {
+  if (!isRecord(body) || typeof body.bank_name !== 'string' || body.bank_name.length === 0) {
+    throw malformed();
+  }
+  return { bankName: body.bank_name, bankId: bankIdOf(body.bank) ?? null };
+}
+
 export function parseDeposit(body: unknown): Deposit {
   if (
     !isRecord(body) ||
@@ -189,6 +201,8 @@ export function registrationToWire(registration: Registration) {
   return {
     full_names: registration.fullNames,
     id_number: registration.idNumber,
+    // Registering is only possible after ticking the consent box: this says which notice it was.
+    privacy_notice_version: PRIVACY_NOTICE_VERSION,
   };
 }
 

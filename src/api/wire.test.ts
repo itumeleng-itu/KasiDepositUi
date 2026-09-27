@@ -1,4 +1,5 @@
 import { BANKS } from '../domain/banks';
+import { PRIVACY_NOTICE_VERSION } from '../privacy';
 import { ApiError } from './errors';
 import {
   BANK_API_CODES,
@@ -9,6 +10,7 @@ import {
   parseDepositHistory,
   parsePayoutMethods,
   parseRegisteredUser,
+  parseBranchCodeLookup,
   parseResolvedShapId,
   parseVoucherLookup,
   registrationToWire,
@@ -241,7 +243,7 @@ describe('registration wire', () => {
   it('sends snake_case', () => {
     expect(
       registrationToWire({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087' }),
-    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087' });
+    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087', privacy_notice_version: PRIVACY_NOTICE_VERSION });
   });
 
   it('parses the registered user', () => {
@@ -300,5 +302,25 @@ describe('parseDepositHistory', () => {
 
   it('refuses a body without a list', () => {
     expect(thrown(() => parseDepositHistory({ items: [] }))).toMatchObject({ reason: 'unknown' });
+  });
+});
+
+describe('parseBranchCodeLookup', () => {
+  it('maps a bank we can pay into', () => {
+    expect(parseBranchCodeLookup({ bank: 'NEDBANK', bank_name: 'Nedbank' })).toEqual({
+      bankName: 'Nedbank',
+      bankId: 'nedbank',
+    });
+  });
+
+  it("keeps the name of a bank we can't pay into", () => {
+    expect(parseBranchCodeLookup({ bank: null, bank_name: 'Grindrod Bank' })).toEqual({
+      bankName: 'Grindrod Bank',
+      bankId: null,
+    });
+  });
+
+  it('rejects a body without a bank name', () => {
+    expect(() => parseBranchCodeLookup({ bank: 'NEDBANK' })).toThrow();
   });
 });

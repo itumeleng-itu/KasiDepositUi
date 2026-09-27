@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
+import { api } from '../../src/api/client';
 import { isApiError } from '../../src/api/errors';
 import { BankList } from '../../src/components/BankList';
 import { Button } from '../../src/components/Button';
@@ -9,8 +10,14 @@ import { DigitsField } from '../../src/components/DigitsField';
 import { InlineError } from '../../src/components/InlineError';
 import { Screen } from '../../src/components/Screen';
 import { common, payout } from '../../src/copy';
-import { ACCOUNT_GROUPING, normaliseAccountNumber, validateAccountNumber } from '../../src/domain/account';
-import type { BankId } from '../../src/domain/banks';
+import {
+  ACCOUNT_GROUPING,
+  ACCOUNT_LENGTHS,
+  normaliseAccountNumber,
+  validateAccountNumber,
+} from '../../src/domain/account';
+import { bankName, POPULAR_BANK_IDS, type BankId } from '../../src/domain/banks';
+import { BRANCH_CODE_GROUPING, isCompleteBranchCode } from '../../src/domain/branchCode';
 import { describeError } from '../../src/errorMessage';
 import { tickHaptic } from '../../src/haptics';
 import { finishAdding } from '../../src/payoutNavigation';
@@ -23,11 +30,25 @@ import { colors, radius, spacing, type } from '../../src/theme';
  * enter someone else's name — and the server checks with the bank that the account belongs to
  * their ID number before saving it. The account number lives in this screen's state until it is
  * sent, once; afterwards the phone only ever knows its last four digits.
+ *
+ * Only the four most-used banks are listed. Any other bank is found from its branch code, so the
+ * user picks from four rows instead of scrolling a long list.
  */
+
+type BranchState =
+  | { kind: 'idle' }
+  | { kind: 'looking' }
+  | { kind: 'found'; bankId: BankId; bankName: string }
+  | { kind: 'unsupported'; bankName: string }
+  | { kind: 'error'; message: string };
+
 export default function AddAccountScreen() {
   const { next } = useLocalSearchParams<{ next?: string }>();
   const [holder, setHolder] = useState<string | null>(null);
-  const [bankId, setBankId] = useState<BankId | null>(null);
+  const [choice, setChoice] = useState<BankId | 'other' | null>(null);
+  const [branchDigits, setBranchDigits] = useState('');
+  const [branchTouched, setBranchTouched] = useState(false);
+  const [branch, setBranch] = useState<BranchState>({ kind: 'idle' });
   const [digits, setDigits] = useState('');
   const [touched, setTouched] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -47,8 +68,55 @@ export default function AddAccountScreen() {
     };
   }, []);
 
-  const accountError = validateAccountNumber(digits);
+  // Looks the bank up as soon as the branch code is complete; a newer code cancels an older one.
+  useEffect(() => {
+    if (choice !== 'other' || !isCompleteBranchCode(branchDigits)) {
+      setBranch({ kind: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setBranch({ kind: 'looking' });
+    api.lookupBranchCode(branchDigits).then(
+      (found) => {
+        if (cancelled) return;
+        setBranch(
+          found.bankId
+            ? { kind: 'found', bankId: found.bankId, bankName: found.bankName }
+            : { kind: 'unsupported', bankName: found.bankName },
+        );
+      },
+      (caught) => {
+        if (!cancelled) setBranch({ kind: 'error', message: describeError(caught, { moneyMayHaveMoved: false }) });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [choice, branchDigits]);
+
+  const bankId: BankId | null =
+    choice === 'other' ? (branch.kind === 'found' ? branch.bankId : null) : choice;
+  const accountError = validateAccountNumber(digits, bankId);
   const valid = bankId !== null && accountError === null;
+  const accountMessage =
+    accountError === 'wrong_length' && bankId !== null
+      ? payout.accountWrongLength(bankName(bankId), ACCOUNT_LENGTHS[bankId] ?? [])
+      : accountError
+        ? payout.accountError[accountError]
+        : null;
+
+  const branchError =
+    branch.kind === 'error'
+      ? branch.message
+      : branchTouched && !isCompleteBranchCode(branchDigits)
+        ? payout.branchCodeIncomplete
+        : null;
+  const branchHelper =
+    branch.kind === 'looking'
+      ? payout.findingBank
+      : branch.kind === 'found'
+        ? payout.bankFound(branch.bankName)
+        : payout.branchCodeHelper;
 
   async function onAdd() {
     setTouched(true);
@@ -96,12 +164,42 @@ export default function AddAccountScreen() {
 
       <BankList
         label={payout.bankLabel}
-        selected={bankId}
+        bankIds={POPULAR_BANK_IDS}
+        selected={choice === 'other' ? null : choice}
         onSelect={(bank) => {
-          setBankId(bank);
+          setChoice(bank);
           setError(null);
         }}
+        other={{
+          label: payout.otherBank,
+          selected: choice === 'other',
+          onSelect: () => {
+            setChoice('other');
+            setError(null);
+          },
+        }}
       />
+
+      {choice === 'other' ? (
+        <DigitsField
+          label={payout.branchCodeLabel}
+          helper={branchHelper}
+          digits={branchDigits}
+          grouping={BRANCH_CODE_GROUPING}
+          onChangeDigits={(nextDigits) => {
+            setBranchDigits(nextDigits);
+            setError(null);
+          }}
+          error={branchError}
+          onBlur={() => setBranchTouched(true)}
+          returnKeyType="next"
+          editable={!adding}
+        />
+      ) : null}
+
+      {branch.kind === 'unsupported' ? (
+        <InlineError message={payout.bankNotSupported(branch.bankName)} />
+      ) : null}
 
       <DigitsField
         label={payout.accountLabel}
@@ -112,7 +210,7 @@ export default function AddAccountScreen() {
           setError(null);
           setOfferPayShap(false);
         }}
-        error={touched && accountError ? payout.accountError[accountError] : null}
+        error={touched ? accountMessage : null}
         onBlur={() => setTouched(true)}
         returnKeyType="done"
         onSubmitEditing={onAdd}
@@ -134,7 +232,7 @@ export default function AddAccountScreen() {
             {payout.accountUnmet}
           </Text>
         ) : null}
-        {offerPayShap ? (
+        {offerPayShap || branch.kind === 'unsupported' ? (
           <Button
             variant="secondary"
             label={payout.usePayShapInstead}

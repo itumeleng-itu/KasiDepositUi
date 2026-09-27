@@ -30,6 +30,12 @@ export const BANKS: readonly Bank[] = [
   { id: 'investec', name: 'Investec' },
 ];
 
+/**
+ * The four most-used banks, shown as rows on the bank-account screen. Every other bank is found
+ * by its branch code, so the list never grows long enough to overwhelm.
+ */
+export const POPULAR_BANK_IDS: readonly BankId[] = ['capitec', 'fnb', 'absa', 'standard_bank'];
+
 export function isBankId(value: unknown): value is BankId {
   return typeof value === 'string' && BANKS.some((bank) => bank.id === value);
 }

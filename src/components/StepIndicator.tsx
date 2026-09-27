@@ -5,7 +5,7 @@ import type { StepState } from '../polling';
 import { borderWidth, colors, fontFamily, size, spacing, type } from '../theme';
 import { Icon } from './Icon';
 
-const LABELS = [status.steps.checked, status.steps.sent, status.steps.arrived] as const;
+const LABELS = [status.steps.checked, status.steps.sent] as const;
 
 const STATE_TEXT: Record<StepState, string> = {
   done: status.stepDone,
@@ -14,11 +14,11 @@ const STATE_TEXT: Record<StepState, string> = {
 };
 
 /**
- * Checked, sent, arrived. A real sequence, so a stepper fits. State is never colour alone:
+ * Checked, then sent. A real sequence, so a stepper fits. State is never colour alone:
  * done is a tick, the current step is a heavy ring with its number, and every step has its
  * name and a screen-reader state.
  */
-export function StepIndicator({ steps }: { steps: readonly [StepState, StepState, StepState] }) {
+export function StepIndicator({ steps }: { steps: readonly [StepState, StepState] }) {
   return (
     <View style={styles.row}>
       {steps.map((state, index) => (

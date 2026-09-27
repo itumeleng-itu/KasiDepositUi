@@ -17,7 +17,8 @@ import { addPayoutMethod } from '../../src/storage/payoutMethods';
 import { colors, spacing, type } from '../../src/theme';
 
 /**
- * Add a PayShap number. One field; the server looks the number up in the PayShap directory and
+ * Use a PayShap number the user already set up in their banking app (the app cannot set anyone
+ * up for PayShap). One field; the server looks the number up in the PayShap directory and
  * only saves it if it is registered there in this user's own name. If it isn't set up for
  * PayShap, or is someone else's, the user is offered a bank account instead — never a dead end.
  * A number registered at more than one bank shows the bank picker, as before.
@@ -111,27 +112,32 @@ export default function AddPayShapScreen() {
       ) : null}
 
       <View style={styles.actions}>
-        <Button
-          label={payout.add}
-          loadingLabel={payout.checkingPayShap}
-          onPress={onAdd}
-          disabled={!parsed.ok}
-          loading={adding}
-        />
-        {!parsed.ok && unmet ? (
-          <Text style={styles.unmet} accessibilityLiveRegion="polite">
-            {unmet}
-          </Text>
-        ) : null}
         {offerAccount ? (
+          // This number can't be used, and registering it on PayShap happens in the user's
+          // banking app, not here: the only way forward from us is a bank account. Editing the
+          // number brings Add back.
           <Button
-            variant="secondary"
             label={payout.useAccountInstead}
             onPress={() =>
               router.replace({ pathname: '/payout-methods/add-account', params: next ? { next } : {} })
             }
           />
-        ) : null}
+        ) : (
+          <>
+            <Button
+              label={payout.add}
+              loadingLabel={payout.checkingPayShap}
+              onPress={onAdd}
+              disabled={!parsed.ok}
+              loading={adding}
+            />
+            {!parsed.ok && unmet ? (
+              <Text style={styles.unmet} accessibilityLiveRegion="polite">
+                {unmet}
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
     </Screen>
   );

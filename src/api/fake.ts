@@ -13,12 +13,16 @@
  *   6  R8 voucher      lookup works; too small to deposit
  *   7-9 error          voucher_not_found
  *
- * ShapID scenarios (last digit of the number, ignoring any @suffix):
- *   9  shapid_not_found
- *   8  shapid_suspended
- *   7  shapid_ambiguous, unless a @bank suffix is present — then resolves at that bank
- *   6  network error (simulates no signal)
- *   anything else  { shapName: 'M. Mothiba', bankId: 'capitec' }
+ * PayShap numbers: the app can't set anyone up for PayShap (that only happens in their banking
+ * app); it can only ask whether a number already is. With no bank connection, the fake (like the
+ * real backend's demo) says yes for every valid number, in the name of the user adding it, at
+ * the @bank suffix's bank or Capitec — so a real person's own number just works. Failures come
+ * only from reserved test numbers, the same ones as the backend (demoPayShap below):
+ *   082 000 0009  shapid_not_found (not set up for PayShap)
+ *   082 000 0008  shapid_suspended
+ *   082 000 0007  shapid_ambiguous, until a bank is chosen
+ *   082 000 0005  someone else's number: shapid_name_mismatch when adding it
+ *   082 000 0006  network error (simulates no signal)
  *
  * The voucher scenario, payout and start time are encoded in the voucher token and deposit id,
  * so `getDepositStatus` keeps working after the app is killed and reopened (resume-after-close).
@@ -31,12 +35,15 @@
  *   8001010003085  sequence 0003  network error (simulates no signal)
  *   any other valid adult ID (e.g. 8001015009087)  registered
  *
- * Adding a PayShap number: the ShapID scenarios above, plus
- *   5  shapid_name_mismatch (registered, but to someone else)
- *   anything else  registered in the user's own name: "T. Mokoena" for Thabo Mokoena
+ * Adding a PayShap number: the reserved numbers above; any other valid number is added in the
+ * user's own masked name ("T. Mokoena" for Thabo Mokoena).
  * Adding a bank account (the account number's last digit):
  *   9  account_not_found     8  account_holder_mismatch     anything else  verified
  * At most 5 payout methods.
+ *
+ * Branch codes: each bank's universal branch code finds that bank, e.g. 198765 Nedbank,
+ * 678910 TymeBank; 584000 is Grindrod Bank, a real bank we can't pay into yet; any other code
+ * is branch_code_not_found.
  *
  * The fake has no database: registered names, payout methods and the deposits listed by
  * `listMyDeposits` last until the app reloads. The app keeps its own copies of both lists, so
@@ -54,6 +61,8 @@ import { formatRand, type Cents } from '../domain/money';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import type {
+  BankId,
+  BranchCodeLookup,
   ClearingFailure,
   Deposit,
   DepositRecord,
@@ -66,6 +75,62 @@ import type {
   VoucherFailure,
   VoucherLookup,
 } from './types';
+
+export type DemoPayShap =
+  | 'registered'
+  | 'not_found'
+  | 'suspended'
+  | 'ambiguous'
+  | 'someone_else'
+  | 'network';
+
+/** The reserved test numbers (E.164, no @bank), the same as the backend's app/shapid.py. */
+const RESERVED_PAYSHAP: Readonly<Record<string, DemoPayShap>> = {
+  '+27820000009': 'not_found',
+  '+27820000008': 'suspended',
+  '+27820000007': 'ambiguous',
+  '+27820000005': 'someone_else',
+  '+27820000006': 'network',
+};
+
+/** What the demo says about a PayShap number: registered, unless it is a reserved test number. */
+export function demoPayShap(number: string): DemoPayShap {
+  return RESERVED_PAYSHAP[number] ?? 'registered';
+}
+
+/**
+ * The refusal for a number that can't be used as asked. `ambiguous` is refused only until a
+ * bank is chosen; `someone_else` resolves (to someone else) and is refused when it is added.
+ */
+function payShapRefusal(outcome: DemoPayShap, bankChosen: boolean): ApiError | null {
+  switch (outcome) {
+    case 'not_found':
+      return ApiError.business('shapid_not_found');
+    case 'suspended':
+      return ApiError.business('shapid_suspended');
+    case 'ambiguous':
+      return bankChosen ? null : ApiError.business('shapid_ambiguous');
+    case 'network':
+      return ApiError.network('Simulated no signal');
+    default:
+      return null;
+  }
+}
+
+/** Universal branch codes. Null: a real bank that isn't one we can pay into. */
+const FAKE_BRANCH_CODES: Readonly<Record<string, { bankName: string; bankId: BankId | null }>> = {
+  '470010': { bankName: 'Capitec', bankId: 'capitec' },
+  '250655': { bankName: 'FNB', bankId: 'fnb' },
+  '632005': { bankName: 'Absa', bankId: 'absa' },
+  '051001': { bankName: 'Standard Bank', bankId: 'standard_bank' },
+  '198765': { bankName: 'Nedbank', bankId: 'nedbank' },
+  '678910': { bankName: 'TymeBank', bankId: 'tymebank' },
+  '430000': { bankName: 'African Bank', bankId: 'african_bank' },
+  '679000': { bankName: 'Discovery Bank', bankId: 'discovery_bank' },
+  '888000': { bankName: 'Bank Zero', bankId: 'bank_zero' },
+  '580105': { bankName: 'Investec', bankId: 'investec' },
+  '584000': { bankName: 'Grindrod Bank', bankId: null },
+};
 
 const SCENARIO_VOUCHER_CENTS: Readonly<Record<number, Cents>> = {
   0: 50000,
@@ -261,36 +326,30 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       };
     },
 
+    async lookupBranchCode(branchCode: string): Promise<BranchCodeLookup> {
+      await sleep(delayMs());
+      const found = FAKE_BRANCH_CODES[branchCode];
+      if (!found) {
+        log('[fake-api] lookupBranchCode -> branch_code_not_found');
+        throw ApiError.business('branch_code_not_found');
+      }
+      log(`[fake-api] lookupBranchCode -> ${found.bankName}`);
+      return found;
+    },
+
     async resolveShapId(shapId: string): Promise<ResolvedShapId> {
       await sleep(delayMs());
 
       const [numberPart, rawSuffix] = shapId.split('@');
-      const digit = numberPart.slice(-1);
-
-      if (digit === '9') {
-        log('[fake-api] resolveShapId scenario 9 -> shapid_not_found');
-        throw ApiError.business('shapid_not_found');
+      const outcome = demoPayShap(numberPart);
+      const refusal = payShapRefusal(outcome, rawSuffix !== undefined);
+      if (refusal) {
+        log(`[fake-api] resolveShapId -> ${outcome}`);
+        throw refusal;
       }
-      if (digit === '8') {
-        log('[fake-api] resolveShapId scenario 8 -> shapid_suspended');
-        throw ApiError.business('shapid_suspended');
-      }
-      if (digit === '7') {
-        if (rawSuffix === undefined) {
-          log('[fake-api] resolveShapId scenario 7 -> shapid_ambiguous');
-          throw ApiError.business('shapid_ambiguous');
-        }
-        const bankId = isBankId(rawSuffix) ? rawSuffix : 'capitec';
-        log(`[fake-api] resolveShapId scenario 7 with a bank chosen -> resolved at ${bankId}`);
-        return { shapName: 'M. Mothiba', bankId };
-      }
-      if (digit === '6') {
-        log('[fake-api] resolveShapId scenario 6 -> network error');
-        throw ApiError.network('Simulated no signal');
-      }
-
-      log(`[fake-api] resolveShapId scenario ${digit} -> resolved at capitec`);
-      return { shapName: 'M. Mothiba', bankId: 'capitec' };
+      const bankId = rawSuffix !== undefined && isBankId(rawSuffix) ? rawSuffix : 'capitec';
+      log(`[fake-api] resolveShapId -> resolved at ${bankId}`);
+      return { shapName: 'M. Mothiba', bankId };
     },
 
     async createDeposit(
@@ -437,31 +496,17 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       }
 
       const [numberPart, rawSuffix] = input.shapId.split('@');
-      const digit = numberPart.slice(-1);
-      const scripted: Record<string, () => never> = {
-        '9': () => {
-          throw ApiError.business('shapid_not_found');
-        },
-        '8': () => {
-          throw ApiError.business('shapid_suspended');
-        },
-        '6': () => {
-          throw ApiError.network('Simulated no signal');
-        },
-        '5': () => {
-          throw ApiError.business('shapid_name_mismatch');
-        },
-      };
-      if (digit === '7' && rawSuffix === undefined) {
-        log('[fake-api] addPayoutMethod shapId scenario 7 -> shapid_ambiguous');
-        throw ApiError.business('shapid_ambiguous');
-      }
-      if (scripted[digit]) {
-        log(`[fake-api] addPayoutMethod shapId scenario ${digit} -> refused`);
-        scripted[digit]();
+      const outcome = demoPayShap(numberPart);
+      const refusal =
+        outcome === 'someone_else'
+          ? ApiError.business('shapid_name_mismatch')
+          : payShapRefusal(outcome, rawSuffix !== undefined);
+      if (refusal) {
+        log(`[fake-api] addPayoutMethod shapId -> ${outcome}`);
+        throw refusal;
       }
       const bankId = rawSuffix !== undefined && isBankId(rawSuffix) ? rawSuffix : 'capitec';
-      log(`[fake-api] addPayoutMethod shapId scenario ${digit} -> added at ${bankId}`);
+      log(`[fake-api] addPayoutMethod shapId -> added at ${bankId}`);
       return save(
         {
           id,
