@@ -124,7 +124,7 @@ describe('the reassurance rule (§5): enforced as a loop, not per reason', () =>
 describe('failureMessage: exact copy for reasons the brief gives verbatim', () => {
   it('shapid_not_found makes the fix obvious', () => {
     expect(failureMessage('shapid_not_found')).toBe(
-      "We couldn't find that number on PayShap. Check the digits, or register your number in your banking app.",
+      "That number isn't set up for PayShap. Check the digits, or set up PayShap in your banking app first.",
     );
   });
 

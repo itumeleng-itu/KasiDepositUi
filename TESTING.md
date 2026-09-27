@@ -58,21 +58,22 @@ screen (or **Pay into a different account** on confirm) opens **Where your money
 saved number and account as a card. Tap a card to pay into it (it shows *Paying into* with a tick,
 and you go back); **Remove** asks first. Up to 5.
 
-**PayShap number** (fake API: the last digit picks the scenario; on the real API, list the number
-on the till page's *PayShap numbers (demo)* first — see the API README):
+**PayShap number.** The app can't set anyone up for PayShap: that only happens in the user's
+own banking app. It only checks that a number already is. With no bank connection the demo says
+yes for **any valid number**, in the name of the person adding it, so a real user's own number
+just works. Failures come only from reserved test numbers (the same on the fake and the real API):
 
-| Number ends in | What should happen |
+| Number | What should happen |
 |---|---|
-| `082 555 1234`, or anything not listed below | Added in your own masked name, e.g. **T. Mokoena** for Thabo Mokoena, Capitec. |
-| `...5` | *This PayShap number is registered to someone else...* and **Use a bank account instead**. |
-| `...9` | *We couldn't find that number on PayShap...* and **Use a bank account instead**. |
-| `...8` | *This account can't receive PayShap payments right now...* and **Use a bank account instead**. |
-| `...7` | *...registered at more than one bank...* and the bank list appears; tap one to add it there. |
-| `...6` | *No connection. Check your data and try again.* Never implies the number is wrong. |
+| Your own number, or any other valid number, e.g. `082 555 1234` | Added in your own masked name, e.g. **T. Mokoena** for Thabo Mokoena, at Capitec. |
+| `082 000 0009` (not set up for PayShap) | *That number isn't set up for PayShap...* The **Add** button disappears and **Use a bank account instead** is the only button. Edit the number and **Add** comes back. |
+| `082 000 0008` (suspended) | *This account can't receive PayShap payments right now...* and **Use a bank account instead**. |
+| `082 000 0007` (at several banks) | *...registered at more than one bank...* and the bank list; tap one to add it there. |
+| `082 000 0005` (someone else's) | *This PayShap number is registered to someone else...* and **Use a bank account instead**. |
+| `082 000 0006` (fake API only) | *No connection. Check your data and try again.* |
 
-For `...5`, `...9` and `...8` the **Add** button disappears and **Use a bank account instead** is
-the only button: registering a number on PayShap happens in the user's banking app, not here.
-Edit the number and **Add** comes back.
+On the real API a number listed on the till page's *PayShap numbers (demo)* always resolves to
+the name listed there, so a presenter's own number shows their own name.
 
 **Bank account.** The holder is your registered name, shown and not editable. Only four banks are
 listed (Capitec, FNB, Absa, Standard Bank) plus **Other bank**. The account number must have the
@@ -165,13 +166,10 @@ paid?** opens with no back button. Tap **PayShap**, type `082 555 1234` (or past
 `+27 82 555 1234`). **Add** enables once the number is valid; tap it. After *Checking with PayShap*,
 one haptic, then the PIN screen shows *Paying into 082 555 1234 · Capitec*.
 
-**Someone else's number, then an account.** Register, choose PayShap and type a number ending in
-`5`: *This PayShap number is registered to someone else...* Tap **Use a bank account instead**:
+**A number that isn't on PayShap, then an account.** Register, choose PayShap and type
+`082 000 0009`: *That number isn't set up for PayShap...* Tap **Use a bank account instead**:
 the account screen opens with your name as holder. Add `1234 564 417` at Capitec: the PIN screen
 shows *Paying into ••••4417 · <bank>*.
-
-**The ambiguous path.** Add a number ending in `7`: the bank list appears under the message. Tap a
-bank: it is added at that bank without retyping the number.
 
 **Switching and removing.** From the PIN screen tap **Change**. Add a second method with the
 buttons at the bottom; it becomes *Paying into*. Tap the other card: back on the PIN screen, *Paying
@@ -183,7 +181,7 @@ the PIN screen showing *Paying into ... · ...*. Enter a PIN ending in `0`, conf
 and fee still show, above **You'll receive R495.00**, and **Paid into** shows **T. Mokoena** /
 **Capitec · ••• ••• 1234**), send, and watch it complete.
 
-**Clearing failure vs identity failure, side by side.** Add a PayShap number ending in `9` and note the message never says the money is safe. Then do a full deposit
+**Clearing failure vs identity failure, side by side.** Add the PayShap number `082 000 0009` and note the message never says the money is safe. Then do a full deposit
 with PIN ending in `3` (bank_unavailable) and note the status screen's message *does* say it.
 Same underlying rule, opposite phases: nothing had moved in the first case, something was
 attempted in the second.
@@ -225,7 +223,7 @@ screens, switch apps and return: what you typed is still there.
 The fake API makes no network calls, so airplane mode changes nothing while it is on. Two ways to
 see the offline behaviour:
 
-1. **A PayShap number ending in 6** (adding) or **a PIN ending in 4** (deposit) simulates no signal.
+1. **A PIN ending in 4** (deposit) simulates no signal.
 2. **Real client:** set `EXPO_PUBLIC_USE_FAKE_API=false` and `EXPO_PUBLIC_API_BASE_URL` to any
    unreachable address (for example `http://10.255.255.1`), restart with `--clear`, and try
    resolving a number, or enter any PIN. After up to 15 seconds you should see *No connection.

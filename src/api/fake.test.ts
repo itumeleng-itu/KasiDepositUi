@@ -1,13 +1,11 @@
 import { calculatePayout, FAKE_FLAT_FEE_CENTS } from '../domain/fees';
 import { ApiError } from './errors';
-import { createFakeApi, randomDelayMs } from './fake';
+import { createFakeApi, demoPayShap, randomDelayMs } from './fake';
 
 /** A saved payout method's id. The fake pays any id; deposits don't depend on which. */
 const destination = 'fkm_test';
 
 const pinEndingIn = (digit: number) => `123456789012345${digit}`;
-const shapIdEndingIn = (digit: number, suffix?: string) =>
-  `+2782123456${digit}${suffix ? `@${suffix}` : ''}`;
 
 function setup() {
   const clock = { now: 1_000_000 };
@@ -87,51 +85,54 @@ describe('fake API: lookupVoucher scenarios', () => {
   });
 });
 
-describe('fake API: resolveShapId scenarios', () => {
-  it('a number ending in 9 is not found', async () => {
-    const { api } = setup();
-    const error = await rejection(api.resolveShapId(shapIdEndingIn(9)));
-    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_not_found' });
+describe('fake API: PayShap numbers in the demo', () => {
+  // Any valid number counts as set up for PayShap; only the reserved test numbers fail. The
+  // same numbers as the backend (app/shapid.py).
+  const ANY = ['+27821234560', '+27821234569', '+27825551234', '+27611234566'];
+
+  it('only the reserved numbers are anything but registered', () => {
+    for (const n of ANY) expect(demoPayShap(n)).toBe('registered');
+    expect(demoPayShap('+27820000009')).toBe('not_found');
+    expect(demoPayShap('+27820000008')).toBe('suspended');
+    expect(demoPayShap('+27820000007')).toBe('ambiguous');
+    expect(demoPayShap('+27820000005')).toBe('someone_else');
+    expect(demoPayShap('+27820000006')).toBe('network');
   });
 
-  it('a number ending in 8 is suspended', async () => {
+  it.each(ANY)('%s resolves at Capitec', async (shapId) => {
     const { api } = setup();
-    const error = await rejection(api.resolveShapId(shapIdEndingIn(8)));
-    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_suspended' });
+    expect(await api.resolveShapId(shapId)).toEqual({ shapName: 'M. Mothiba', bankId: 'capitec' });
   });
 
-  it('a number ending in 7 with no @suffix is ambiguous', async () => {
+  it('a @bank suffix places it at that bank, and settles the ambiguous number', async () => {
     const { api } = setup();
-    const error = await rejection(api.resolveShapId(shapIdEndingIn(7)));
-    expect(error).toMatchObject({ kind: 'business', reason: 'shapid_ambiguous' });
+    expect(await api.resolveShapId('+27821234560@fnb')).toEqual({ shapName: 'M. Mothiba', bankId: 'fnb' });
+    expect((await api.resolveShapId('+27820000007@absa')).bankId).toBe('absa');
   });
 
-  it('a number ending in 7 WITH a @bank suffix resolves normally, at that bank', async () => {
+  it.each([
+    ['+27820000009', 'shapid_not_found'],
+    ['+27820000008', 'shapid_suspended'],
+    ['+27820000007', 'shapid_ambiguous'],
+  ])('%s is refused: %s', async (shapId, reason) => {
     const { api } = setup();
-    const resolved = await api.resolveShapId(shapIdEndingIn(7, 'fnb'));
-    expect(resolved).toEqual({ shapName: 'M. Mothiba', bankId: 'fnb' });
+    expect(await rejection(api.resolveShapId(shapId))).toMatchObject({ kind: 'business', reason });
   });
 
-  it('a number ending in 6 is a network error, not a business error', async () => {
+  it('082 000 0006 simulates no signal', async () => {
     const { api } = setup();
-    const error = await rejection(api.resolveShapId(shapIdEndingIn(6)));
-    expect(error.kind).toBe('network');
-    expect(error.reason).toBeUndefined();
-  });
-
-  it.each([0, 1, 2, 3, 4, 5])('any other last digit (%d) resolves at Capitec', async (digit) => {
-    const { api } = setup();
-    const resolved = await api.resolveShapId(shapIdEndingIn(digit));
-    expect(resolved).toEqual({ shapName: 'M. Mothiba', bankId: 'capitec' });
+    expect(await rejection(api.resolveShapId('+27820000006'))).toMatchObject({ kind: 'network' });
   });
 
   it('never logs the ShapID', async () => {
     const { api, logs } = setup();
-    const shapId = shapIdEndingIn(0);
-    await api.resolveShapId(shapId);
-    await rejection(api.resolveShapId(shapIdEndingIn(9)));
+    await api.resolveShapId(ANY[0]);
+    await rejection(api.resolveShapId('+27820000009'));
     expect(logs.length).toBeGreaterThan(0);
-    for (const line of logs) expect(line).not.toContain(shapId);
+    for (const line of logs) {
+      expect(line).not.toContain(ANY[0]);
+      expect(line).not.toContain('+27820000009');
+    }
   });
 });
 
@@ -354,12 +355,18 @@ describe('fake API: payout methods', () => {
     expect(await api.listPayoutMethods()).toEqual([added]);
   });
 
+  it("adds a new user's registered number in their own name, never someone else's", async () => {
+    const { api } = await registered();
+    const added = await api.addPayoutMethod({ kind: 'shapId', shapId: '+27821234560' }, true);
+    expect(added).toMatchObject({ shapName: 'T. Mokoena', bankId: 'capitec' });
+  });
+
   it.each([
-    [shapIdEndingIn(5), 'shapid_name_mismatch'],
-    [shapIdEndingIn(9), 'shapid_not_found'],
-    [shapIdEndingIn(8), 'shapid_suspended'],
-    [shapIdEndingIn(7), 'shapid_ambiguous'],
-  ])('refuses %s: %s', async (shapId, reason) => {
+    ['+27820000009', 'shapid_not_found'],
+    ['+27820000008', 'shapid_suspended'],
+    ['+27820000007', 'shapid_ambiguous'],
+    ['+27820000005', 'shapid_name_mismatch'],
+  ])('refuses to add %s: %s', async (shapId, reason) => {
     const { api } = await registered();
     expect(await rejection(api.addPayoutMethod({ kind: 'shapId', shapId }, true))).toMatchObject({
       kind: 'business',

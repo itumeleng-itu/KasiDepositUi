@@ -114,6 +114,13 @@ export default function DepositScreen() {
         onPress={() => router.push('/history')}
         disabled={loading}
       />
+
+      <Button
+        variant="text"
+        label={deposit.privacyButton}
+        onPress={() => router.push('/privacy')}
+        disabled={loading}
+      />
     </Screen>
   );
 }

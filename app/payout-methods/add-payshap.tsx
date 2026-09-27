@@ -17,7 +17,8 @@ import { addPayoutMethod } from '../../src/storage/payoutMethods';
 import { colors, spacing, type } from '../../src/theme';
 
 /**
- * Add a PayShap number. One field; the server looks the number up in the PayShap directory and
+ * Use a PayShap number the user already set up in their banking app (the app cannot set anyone
+ * up for PayShap). One field; the server looks the number up in the PayShap directory and
  * only saves it if it is registered there in this user's own name. If it isn't set up for
  * PayShap, or is someone else's, the user is offered a bank account instead — never a dead end.
  * A number registered at more than one bank shows the bank picker, as before.

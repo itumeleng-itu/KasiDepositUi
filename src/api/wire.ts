@@ -7,7 +7,7 @@
  *   POST /deposits          { voucher_token, payout_method_id }      -> deposit
  *                           with an `Idempotency-Key` header
  *   GET  /deposits/{id}                                              -> deposit
- *   POST /users             { full_names, id_number }                -> registered user
+ *   POST /users             { full_names, id_number, privacy_notice_version } -> registered user
  *   GET  /me/deposits                                                -> { deposits: [...] }
  *   GET  /me/payout-methods                                          -> { payout_methods: [...] }
  *   POST /me/payout-methods { kind: shap_id, shap_id } | { kind: account, bank, account_number }
@@ -24,6 +24,7 @@
  */
 import type { BankId } from '../domain/banks';
 import { parseStoredDestination } from '../domain/destination';
+import { PRIVACY_NOTICE_VERSION } from '../privacy';
 import { ApiError } from './errors';
 import {
   CLEARING_FAILURE_REASONS,
@@ -200,6 +201,8 @@ export function registrationToWire(registration: Registration) {
   return {
     full_names: registration.fullNames,
     id_number: registration.idNumber,
+    // Registering is only possible after ticking the consent box: this says which notice it was.
+    privacy_notice_version: PRIVACY_NOTICE_VERSION,
   };
 }
 

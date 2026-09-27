@@ -4,6 +4,7 @@ import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api } from '../src/api/client';
 import { Button } from '../src/components/Button';
+import { Checkbox } from '../src/components/Checkbox';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
@@ -27,6 +28,8 @@ export default function RegisterScreen() {
   const [fullNames, setFullNames] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [touched, setTouched] = useState<Record<Field, boolean>>({ fullNames: false, idNumber: false });
+  // POPIA: nothing is sent until the user has agreed to the privacy notice.
+  const [consented, setConsented] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
@@ -34,7 +37,8 @@ export default function RegisterScreen() {
 
   const namesError = validateFullNames(fullNames);
   const id = parseSaId(idNumber);
-  const valid = namesError === null && id.ok;
+  const detailsValid = namesError === null && id.ok;
+  const valid = detailsValid && consented;
 
   const touch = (field: Field) => setTouched((t) => ({ ...t, [field]: true }));
 
@@ -112,6 +116,22 @@ export default function RegisterScreen() {
         editable={!sending}
       />
 
+      <View style={styles.consent}>
+        <Checkbox
+          label={register.consent}
+          checked={consented}
+          onChange={setConsented}
+          disabled={sending}
+        />
+        <Button
+          variant="text"
+          align="start"
+          label={register.readPrivacy}
+          onPress={() => router.push('/privacy')}
+          disabled={sending}
+        />
+      </View>
+
       {error ? <InlineError message={error} /> : null}
 
       <View style={styles.actions}>
@@ -124,7 +144,7 @@ export default function RegisterScreen() {
         />
         {!valid ? (
           <Text style={styles.unmet} accessibilityLiveRegion="polite">
-            {register.unmet}
+            {detailsValid ? register.unmetConsent : register.unmet}
           </Text>
         ) : null}
       </View>
@@ -138,6 +158,7 @@ const styles = StyleSheet.create({
   heading: { gap: spacing.sm },
   title: { ...type.headline, color: colors.ink },
   body: { ...type.body, color: colors.inkMuted },
+  consent: { gap: spacing.xs },
   actions: { gap: spacing.md },
   unmet: { ...type.label, color: colors.inkMuted, textAlign: 'center' },
   note: { ...type.body, color: colors.inkMuted },

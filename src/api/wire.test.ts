@@ -1,4 +1,5 @@
 import { BANKS } from '../domain/banks';
+import { PRIVACY_NOTICE_VERSION } from '../privacy';
 import { ApiError } from './errors';
 import {
   BANK_API_CODES,
@@ -242,7 +243,7 @@ describe('registration wire', () => {
   it('sends snake_case', () => {
     expect(
       registrationToWire({ fullNames: 'Thabo Mokoena', idNumber: '8001015009087' }),
-    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087' });
+    ).toEqual({ full_names: 'Thabo Mokoena', id_number: '8001015009087', privacy_notice_version: PRIVACY_NOTICE_VERSION });
   });
 
   it('parses the registered user', () => {
