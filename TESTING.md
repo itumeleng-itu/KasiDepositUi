@@ -120,18 +120,33 @@ PIN below works repeatedly, because the fake hands out a fresh voucher on each l
 
 | PIN | Ends in | Voucher | What should happen |
 |---|---|---|---|
-| `1234 5678 9012 3450` | 0 | R500.00, fee R5.00 | Confirm shows **R495.00**. Status: *Sending your money*, then *On its way* (about 1.5 s), then **R495.00 sent** (about 3 s, plus a poll). One success haptic. |
+| `1234 5678 9012 3450` | 0 | R500.00, fee R12.50 (2.5%) | Confirm shows **R487.50**. Status: *Sending your money*, then *On its way* (about 1.5 s), then **R487.50 sent** (about 3 s, plus a poll). One success haptic. |
 | `1234 5678 9012 3451` | 1 | already used | Stays on the PIN screen: *This voucher has already been used.* PIN stays in the field. |
-| `1234 5678 9012 3452` | 2 | R200.00 | Confirm **R195.00**. Ends *We couldn't send this deposit. We couldn't send this right now. Your money is safe and hasn't been lost.* with **Try again later**. |
-| `1234 5678 9012 3453` | 3 | R1 000.00 | Confirm **R995.00**. Ends *We couldn't send this deposit. The bank is temporarily unavailable. Your money is safe and hasn't been lost.* with **Try again**. |
+| `1234 5678 9012 3452` | 2 | R200.00 | Fee R5.00. Confirm **R195.00**. Ends *We couldn't send this deposit. We couldn't send this right now. Your money is safe and hasn't been lost.* with **Try again later**. |
+| `1234 5678 9012 3453` | 3 | R1 000.00 | Fee R25.00. Confirm **R975.00**. Ends *We couldn't send this deposit. The bank is temporarily unavailable. Your money is safe and hasn't been lost.* with **Try again**. |
 | `1234 5678 9012 3454` | 4 | no signal | *No connection. Check your data and try again.* on the PIN screen. Never says the voucher is bad. |
-| `1234 5678 9012 3455` | 5 | R50.00 | Confirm **R45.00**. Stays *On its way*, becomes **Still processing** at 90 s (never "failed"), then **R45.00 sent** at about 101 s. |
+| `1234 5678 9012 3455` | 5 | R50.00 | Fee R1.25. Confirm **R48.75**. Stays *On its way*, becomes **Still processing** at 90 s (never "failed"), then **R48.75 sent** at about 101 s. |
 | `1234 5678 9012 3456` | 6 | R8.00 | Lookup works. Confirm shows *This voucher is too small to deposit. The minimum is R10.00.* and a disabled **Can't send this voucher**. |
-| `1234 5678 9012 3457` to `...3459` | 7, 8, 9 | not found | *We couldn't find that PIN. Check each digit against your till slip.* |
+| `1234 5678 9012 3457` | 7 | not found | *We couldn't find that PIN. Check each digit against your till slip.* |
+| `1234 5678 9012 3458` | 8 | R300.00, risk check | Fee R7.50. Confirm **R292.50**. Tapping Deposit shows **Before you deposit**: *Did someone ask you to buy this voucher, or tell you to read the PIN out loud?* with **Stop and get help** and **Continue**. Nothing has been sent yet. **Continue** deposits as scenario 0. **Stop and get help** shows *Your deposit has stopped*, then **Done** returns to the PIN screen with the voucher unused. |
+| `1234 5678 9012 3459` | 9 | R300.00, declined | Fee R7.50. Confirm **R292.50**. Tapping Deposit stays on confirm: *We can't complete this deposit. Nothing was taken and your voucher hasn't been used. Never read your PIN to anyone.* |
 
 Both scenarios 2 and 3 end with the reassurance sentence: once a deposit exists, settlement was
 attempted, so every outcome — however it fails — says the money is safe. Every status screen also
 shows a selectable **Reference: KD-XXXXXX**.
+
+### The risk check (PINs ending in 8 and 9)
+
+The backend asks for this check before anything is charged, and never says why. Neither does
+the app: no score, no rule, no number appears on either screen.
+
+- **Continue** sends the same deposit again with the same idempotency key, so a double tap or
+  a retry after no signal can never pay twice, and the question is not asked a second time.
+- With TalkBack or VoiceOver on, the question is announced when it appears. **Stop and get
+  help** reads as *Someone asked me. Stop and get help*, and **Continue** as *No one asked me.
+  Continue with my deposit*. Each point on the stopped screen is read without the bullet.
+- **Stop and get help** is the primary (filled) button on purpose: the safe choice is the easy
+  one to reach for someone being rushed on the phone.
 
 ## Scan a voucher
 
@@ -178,7 +193,7 @@ list says so, and the PIN screen sends you to add one before a deposit.
 
 **A full deposit end to end.** With a payout method added, open the app fresh: it goes straight to
 the PIN screen showing *Paying into ... · ...*. Enter a PIN ending in `0`, confirm (voucher value
-and fee still show, above **You'll receive R495.00**, and **Paid into** shows **T. Mokoena** /
+and fee still show, above **You'll receive R487.50**, and **Paid into** shows **T. Mokoena** /
 **Capitec · ••• ••• 1234**), send, and watch it complete.
 
 **Clearing failure vs identity failure, side by side.** Add the PayShap number `082 000 0009` and note the message never says the money is safe. Then do a full deposit

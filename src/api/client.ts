@@ -2,6 +2,7 @@ import { fakeApi } from './fake';
 import { httpApi } from './http';
 import type {
   BranchCodeLookup,
+  CreateDepositOptions,
   Deposit,
   DepositRecord,
   NewPayoutMethod,
@@ -28,7 +29,12 @@ export interface ApiClient {
    * Pays the voucher into one of the user's saved payout methods. Safe to retry with the same
    * `idempotencyKey`: the server returns the same deposit.
    */
-  createDeposit(voucherToken: string, payoutMethodId: string, idempotencyKey: string): Promise<Deposit>;
+  createDeposit(
+    voucherToken: string,
+    payoutMethodId: string,
+    idempotencyKey: string,
+    options?: CreateDepositOptions,
+  ): Promise<Deposit>;
   getDepositStatus(id: string): Promise<Deposit>;
   /**
    * Creates the user, or re-links this phone if the same person registers again with the same

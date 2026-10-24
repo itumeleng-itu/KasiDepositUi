@@ -11,7 +11,10 @@
  *   4  network error on lookup (simulates no signal)
  *   5  R50 voucher     submitted stays for 100 s, then completed
  *   6  R8 voucher      lookup works; too small to deposit
- *   7-9 error          voucher_not_found
+ *   7  error           voucher_not_found
+ *   8  R300 voucher    the risk check: deposit refused confirmation_required until it is sent
+ *                      again with riskAcknowledged, then as scenario 0
+ *   9  R300 voucher    the risk check: deposit refused deposit_declined, acknowledged or not
  *
  * PayShap numbers: the app can't set anyone up for PayShap (that only happens in their banking
  * app); it can only ask whether a number already is. With no bank connection, the fake (like the
@@ -54,7 +57,7 @@
  * scenario digits.
  */
 import { isBankId } from '../domain/banks';
-import { calculatePayout, FAKE_FLAT_FEE_CENTS, MIN_VOUCHER_CENTS } from '../domain/fees';
+import { calculateFee, calculatePayout, FAKE_FEE_BASIS_POINTS, MIN_VOUCHER_CENTS } from '../domain/fees';
 import type { StoredDestination } from '../domain/destination';
 import { parseSaId } from '../domain/saId';
 import { formatRand, type Cents } from '../domain/money';
@@ -74,6 +77,7 @@ import type {
   ResolvedShapId,
   VoucherFailure,
   VoucherLookup,
+  CreateDepositOptions,
 } from './types';
 
 export type DemoPayShap =
@@ -138,7 +142,13 @@ const SCENARIO_VOUCHER_CENTS: Readonly<Record<number, Cents>> = {
   3: 100000,
   5: 5000,
   6: 800,
+  8: 30000,
+  9: 30000,
 };
+
+/** The risk scenarios: what the backend's app/risk.py answers for a warn and a review. */
+const RISK_WARN_SCENARIO = 8;
+const RISK_REVIEW_SCENARIO = 9;
 
 const SUBMITTED_AFTER_MS = 1500;
 const COMPLETED_AFTER_MS = 3000;
@@ -316,7 +326,7 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
         throw ApiError.business('voucher_not_found');
       }
 
-      const feeCents = FAKE_FLAT_FEE_CENTS;
+      const feeCents = calculateFee(valueCents, FAKE_FEE_BASIS_POINTS);
       log(`[fake-api] lookupVoucher scenario ${scenario} -> ${formatRand(valueCents)} voucher`);
       return {
         voucherToken: `${TOKEN_PREFIX}_${scenario}_${valueCents}_${randomChars(36, 6)}`,
@@ -356,6 +366,7 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       voucherToken: string,
       payoutMethodId: string,
       idempotencyKey: string,
+      options: CreateDepositOptions = {},
     ): Promise<Deposit> {
       await sleep(delayMs());
 
@@ -381,8 +392,20 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
         log(`[fake-api] createDeposit scenario ${token.scenario} -> voucher_already_redeemed`);
         throw ApiError.business('voucher_already_redeemed');
       }
+      // Like the backend: risk answers before anything is charged, and says nothing about why.
+      if (token.scenario === RISK_REVIEW_SCENARIO) {
+        log(`[fake-api] createDeposit scenario ${token.scenario} -> deposit_declined`);
+        throw ApiError.business('deposit_declined');
+      }
+      if (token.scenario === RISK_WARN_SCENARIO && options.riskAcknowledged !== true) {
+        log(`[fake-api] createDeposit scenario ${token.scenario} -> confirmation_required`);
+        throw ApiError.business('confirmation_required');
+      }
 
-      const payoutCents = calculatePayout(token.valueCents, FAKE_FLAT_FEE_CENTS);
+      const payoutCents = calculatePayout(
+        token.valueCents,
+        calculateFee(token.valueCents, FAKE_FEE_BASIS_POINTS),
+      );
       const createdAt = now();
       const code = randomChars(16, 6).toUpperCase();
       const id = `${DEPOSIT_PREFIX}_${token.scenario}_${payoutCents}_${createdAt.toString(36)}_${code}`;
@@ -447,10 +470,12 @@ export function createFakeApi(options: FakeApiOptions = {}): ApiClient {
       for (const [id, destination] of sentTo) {
         const parts = decodeDepositId(id);
         if (!parts) continue;
+        // Each scenario has one voucher value, so the value (and fee) follow from it.
+        const valueCents = SCENARIO_VOUCHER_CENTS[parts.scenario] ?? 0;
         records.push({
           ...viewDeposit(id),
-          valueCents: parts.payoutCents + FAKE_FLAT_FEE_CENTS,
-          feeCents: FAKE_FLAT_FEE_CENTS,
+          valueCents,
+          feeCents: valueCents - parts.payoutCents,
           createdAt: parts.createdAt,
           destination,
         });

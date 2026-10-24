@@ -12,6 +12,8 @@ describe('describeError: business errors always come from failureMessage', () =>
     'voucher_not_found',
     'voucher_already_redeemed',
     'voucher_too_small',
+    'confirmation_required',
+    'deposit_declined',
   ] as FailureReason[])('%s never reassures, whichever phase flag is passed', (reason) => {
     const message = failureMessage(reason);
     expect(describeError(ApiError.business(reason), { moneyMayHaveMoved: false })).toBe(message);

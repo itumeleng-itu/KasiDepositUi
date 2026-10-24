@@ -13,6 +13,7 @@ import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
   REGISTRATION_FAILURE_REASONS,
+  RISK_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
   type DepositStatus,
   type FailureReason,
@@ -272,6 +273,33 @@ export const confirm = {
   feeLabel: (feeCents: Cents) => `Fee, ${spokenRand(feeCents)}`,
 } as const;
 
+/**
+ * The check shown on the confirm screen when the server answers `confirmation_required`. Plain
+ * words about what the user may have been told to do, never why we are asking: no score, no
+ * rule, no number of any kind (tested in copy.test.ts). English only for now.
+ */
+export const riskCheck = {
+  title: 'Before you deposit',
+  question: 'Did someone ask you to buy this voucher, or tell you to read the PIN out loud?',
+  explain:
+    'Scammers often call or message people and ask for a voucher PIN. Once someone else has your PIN, they can take the money.',
+  never: 'KasiDeposit will never ask you for your PIN.',
+  continue: 'Continue',
+  continueLabel: 'No one asked me. Continue with my deposit',
+  stop: 'Stop and get help',
+  stopLabel: 'Someone asked me. Stop and get help',
+  // After Stop: nothing has been charged.
+  stoppedTitle: 'Your deposit has stopped',
+  stoppedPoints: [
+    "Nothing was taken. Your voucher hasn't been used, so keep the slip.",
+    "Don't read the PIN to anyone, and don't send a photo of the slip.",
+    'If someone is pressuring you, talk to someone you trust before you do anything else.',
+    'If you think it was a scam, report it at your nearest police station.',
+  ],
+  done: 'Done',
+  doneLabel: 'Done. Go back to the start',
+} as const;
+
 export const status = {
   makeAnother: 'Make another deposit',
   tryAgain: common.tryAgain,
@@ -425,6 +453,11 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
   shapid_name_mismatch:
     'This PayShap number is registered to someone else. Use a number in your own name, or a bank account.',
   not_registered: 'You need to register again on this phone to continue.',
+  // The confirm screen shows `riskCheck` for this one; the message is only a fallback.
+  confirmation_required: 'Check this deposit is your own before you continue.',
+  // Says nothing about why: the server does not say, and a reason would teach a scammer.
+  deposit_declined:
+    "We can't complete this deposit. Nothing was taken and your voucher hasn't been used. Never read your PIN to anyone.",
 } satisfies Record<FailureReason, string>;
 
 const CLEARING_REASON_SET: ReadonlySet<string> = new Set(Object.keys(CLEARING_FAILURE_REASONS));
@@ -475,3 +508,4 @@ export const ALL_VOUCHER_FAILURES = Object.keys(
 export const ALL_REGISTRATION_FAILURES = Object.keys(
   REGISTRATION_FAILURE_REASONS,
 ) as (keyof typeof REGISTRATION_FAILURE_REASONS)[];
+export const ALL_RISK_FAILURES = Object.keys(RISK_FAILURE_REASONS) as (keyof typeof RISK_FAILURE_REASONS)[];

@@ -8,12 +8,13 @@ import type { PayoutMethod } from '../src/api/types';
 import { Button } from '../src/components/Button';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
-import { common, confirm } from '../src/copy';
+import { common, confirm, riskCheck } from '../src/copy';
 import { describeDestination } from '../src/domain/destination';
 import { isVoucherDepositable } from '../src/domain/fees';
 import { formatRand, spokenRand } from '../src/domain/money';
 import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
+import { depositOptions, needsRiskCheck, type ConfirmStep } from '../src/riskCheck';
 import { saveActiveDeposit } from '../src/storage/activeDeposit';
 import { recordRedemption } from '../src/storage/history';
 import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
@@ -27,13 +28,21 @@ import {
 /**
  * The last check before money leaves. Payouts cannot be reversed, so the amount the user will
  * receive is the biggest thing here and is repeated in the Send button.
+ *
+ * If the server answers Send with `confirmation_required` (its risk check), nothing has been
+ * charged: the screen asks whether anyone told the user to buy the voucher or read out the PIN.
+ * Continue sends the same deposit again (same idempotency key) with the acknowledgement; Stop
+ * explains what to do and leaves the voucher unused. The reason for asking is never shown.
  */
 export default function ConfirmScreen() {
   const [session] = useState(currentVoucherSession);
   const [destination, setDestination] = useState<PayoutMethod | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<ConfirmStep>('review');
   const sendingRef = useRef(false);
+  // Set once the user chooses Continue; every later attempt for this voucher carries it.
+  const acknowledgedRef = useRef(false);
 
   // No voucher in memory (the app was reloaded): there is nothing to confirm.
   useEffect(() => {
@@ -79,7 +88,12 @@ export default function ConfirmScreen() {
       // network, a double tap or a retry can never pay twice.
       const idempotencyKey = ensureIdempotencyKey(session, randomUUID);
 
-      const created = await api.createDeposit(session.lookup.voucherToken, destination.id, idempotencyKey);
+      const created = await api.createDeposit(
+        session.lookup.voucherToken,
+        destination.id,
+        idempotencyKey,
+        depositOptions(acknowledgedRef.current),
+      );
 
       const sentAt = Date.now();
       try {
@@ -117,10 +131,82 @@ export default function ConfirmScreen() {
       if (router.canDismiss()) router.dismissAll();
       router.replace({ pathname: '/status/[id]', params: { id: created.id } });
     } catch (caught) {
-      setError(describeError(caught, { moneyMayHaveMoved: true }));
       sendingRef.current = false;
       setSending(false);
+      if (needsRiskCheck(caught) && !acknowledgedRef.current) {
+        setStep('risk_check');
+        return;
+      }
+      setError(describeError(caught, { moneyMayHaveMoved: true }));
     }
+  }
+
+  function onContinueAfterRiskCheck() {
+    acknowledgedRef.current = true;
+    setStep('review');
+    void onSend();
+  }
+
+  function onDone() {
+    // Nothing was charged; the voucher is unused. Start again from the PIN screen.
+    clearVoucherSession();
+    if (router.canDismiss()) router.dismissAll();
+    router.replace('/deposit');
+  }
+
+  if (step === 'risk_check') {
+    return (
+      <Screen>
+        <View style={styles.check} accessibilityLiveRegion="assertive">
+          <Text accessibilityRole="header" style={styles.title}>
+            {riskCheck.title}
+          </Text>
+          <Text accessibilityRole="alert" style={styles.question}>
+            {riskCheck.question}
+          </Text>
+          <Text style={styles.note}>{riskCheck.explain}</Text>
+          <Text style={styles.note}>{riskCheck.never}</Text>
+        </View>
+
+        <View style={styles.actions}>
+          {/* Stop is the primary action: the safe choice is the easy one to reach. */}
+          <Button
+            label={riskCheck.stop}
+            accessibilityLabel={riskCheck.stopLabel}
+            onPress={() => setStep('stopped')}
+          />
+          <Button
+            variant="secondary"
+            label={riskCheck.continue}
+            accessibilityLabel={riskCheck.continueLabel}
+            onPress={onContinueAfterRiskCheck}
+          />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (step === 'stopped') {
+    return (
+      <Screen>
+        <View style={styles.check} accessibilityLiveRegion="polite">
+          <Text accessibilityRole="header" style={styles.title}>
+            {riskCheck.stoppedTitle}
+          </Text>
+          <View style={styles.points} accessibilityRole="list">
+            {riskCheck.stoppedPoints.map((point) => (
+              <Text key={point} style={styles.note} accessibilityLabel={point}>
+                {`\u2022 ${point}`}
+              </Text>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.actions}>
+          <Button label={riskCheck.done} accessibilityLabel={riskCheck.doneLabel} onPress={onDone} />
+        </View>
+      </Screen>
+    );
   }
 
   return (
@@ -225,4 +311,7 @@ const styles = StyleSheet.create({
   holder: { ...type.title, color: colors.ink },
   note: { ...type.body, color: colors.ink },
   actions: { gap: spacing.md },
+  check: { gap: spacing.lg },
+  question: { ...type.title, color: colors.ink },
+  points: { gap: spacing.md },
 });

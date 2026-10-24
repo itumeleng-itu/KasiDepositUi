@@ -1,4 +1,4 @@
-import { calculatePayout, FAKE_FLAT_FEE_CENTS } from '../domain/fees';
+import { calculateFee, calculatePayout, FAKE_FEE_BASIS_POINTS } from '../domain/fees';
 import { ApiError } from './errors';
 import { createFakeApi, demoPayShap, randomDelayMs } from './fake';
 
@@ -38,12 +38,15 @@ describe('fake API: lookupVoucher scenarios', () => {
     [3, 100000],
     [5, 5000],
     [6, 800],
+    [8, 30000],
+    [9, 30000],
   ])('PIN ending in %d gives a %d cent voucher', async (digit, valueCents) => {
     const { api } = setup();
     const lookup = await api.lookupVoucher(pinEndingIn(digit));
     expect(lookup.valueCents).toBe(valueCents);
-    expect(lookup.feeCents).toBe(FAKE_FLAT_FEE_CENTS);
-    expect(lookup.payoutCents).toBe(calculatePayout(valueCents, FAKE_FLAT_FEE_CENTS));
+    const feeCents = calculateFee(valueCents, FAKE_FEE_BASIS_POINTS);
+    expect(lookup.feeCents).toBe(feeCents);
+    expect(lookup.payoutCents).toBe(calculatePayout(valueCents, feeCents));
     expect(lookup.voucherToken.length).toBeGreaterThan(0);
   });
 
@@ -60,7 +63,8 @@ describe('fake API: lookupVoucher scenarios', () => {
     expect(error.reason).toBeUndefined();
   });
 
-  it.each([7, 8, 9])('PIN ending in %d is not found', async (digit) => {
+  it('PIN ending in 7 is not found', async () => {
+    const digit = 7;
     const { api } = setup();
     const error = await rejection(api.lookupVoucher(pinEndingIn(digit)));
     expect(error).toMatchObject({ kind: 'business', reason: 'voucher_not_found' });
@@ -204,7 +208,7 @@ describe('fake API: deposit lifecycle', () => {
   it('scenario 0: pending, then submitted, then completed', async () => {
     const { api, clock, deposit } = await start(0);
     expect(deposit.status).toBe('pending');
-    expect(deposit.payoutCents).toBe(49500);
+    expect(deposit.payoutCents).toBe(48750);
     expect(deposit.reference).toMatch(/^KD-[0-9A-F]{6}$/);
 
     clock.now += 1600;
@@ -261,7 +265,7 @@ describe('fake API: deposit lifecycle', () => {
       id: deposit.id,
       reference: deposit.reference,
       status: 'completed',
-      payoutCents: 49500,
+      payoutCents: 48750,
     });
   });
 
@@ -435,8 +439,8 @@ describe('fake API: listMyDeposits', () => {
     expect(listed.map((d) => d.id)).toEqual([b.id, a.id]);
     expect(listed[1]).toMatchObject({
       valueCents: 50000,
-      feeCents: FAKE_FLAT_FEE_CENTS,
-      payoutCents: calculatePayout(50000, FAKE_FLAT_FEE_CENTS),
+      feeCents: 1250,
+      payoutCents: 48750,
       destination: { kind: 'shapId', shapId: '+27825551234@fnb', shapName: 'T. Mokoena', bankId: 'fnb' },
     });
     expect(listed[0].destination).toEqual({
@@ -463,5 +467,46 @@ describe('lookupBranchCode', () => {
     const { api } = setup();
     const error = await rejection(api.lookupBranchCode('123456'));
     expect(error).toMatchObject({ kind: 'business', reason: 'branch_code_not_found' });
+  });
+});
+
+describe('fake API: the risk check', () => {
+  it('PIN ending in 8 asks for confirmation and charges nothing until acknowledged', async () => {
+    const { api } = setup();
+    const { voucherToken } = await api.lookupVoucher(pinEndingIn(8));
+
+    const asked = await rejection(api.createDeposit(voucherToken, destination, 'key-8'));
+    expect(asked).toMatchObject({ kind: 'business', reason: 'confirmation_required' });
+    // Asking again without the acknowledgement still asks: nothing was created the first time.
+    const again = await rejection(api.createDeposit(voucherToken, destination, 'key-8'));
+    expect(again).toMatchObject({ kind: 'business', reason: 'confirmation_required' });
+
+    const deposit = await api.createDeposit(voucherToken, destination, 'key-8', { riskAcknowledged: true });
+    expect(deposit.status).toBe('pending');
+    // A replay of the same key afterwards is the same deposit, acknowledged or not.
+    expect((await api.createDeposit(voucherToken, destination, 'key-8')).id).toBe(deposit.id);
+  });
+
+  it('PIN ending in 9 is declined, and acknowledging makes no difference', async () => {
+    const { api } = setup();
+    const { voucherToken } = await api.lookupVoucher(pinEndingIn(9));
+    for (const options of [{}, { riskAcknowledged: true }]) {
+      const error = await rejection(api.createDeposit(voucherToken, destination, 'key-9', options));
+      expect(error).toMatchObject({ kind: 'business', reason: 'deposit_declined' });
+    }
+  });
+
+  it('an ordinary voucher never asks', async () => {
+    const { api } = setup();
+    const { voucherToken } = await api.lookupVoucher(pinEndingIn(0));
+    expect((await api.createDeposit(voucherToken, destination, 'key-0')).status).toBe('pending');
+  });
+
+  it('the risk logs name the scenario and nothing else', async () => {
+    const { api, logs } = setup();
+    const { voucherToken } = await api.lookupVoucher(pinEndingIn(8));
+    await rejection(api.createDeposit(voucherToken, destination, 'key-8'));
+    expect(logs.some((line) => line.includes('confirmation_required'))).toBe(true);
+    for (const line of logs) expect(line).not.toContain(pinEndingIn(8));
   });
 });

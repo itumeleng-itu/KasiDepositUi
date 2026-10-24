@@ -2,12 +2,14 @@ import {
   ALL_CLEARING_FAILURES,
   ALL_IDENTITY_FAILURES,
   ALL_REGISTRATION_FAILURES,
+  ALL_RISK_FAILURES,
   ALL_VOUCHER_FAILURES,
   failureMessage,
   formatSentAt,
   isClearingFailure,
   nextStatusAction,
   payout,
+  riskCheck,
   SAFE_MONEY,
   statusCopy,
 } from './copy';
@@ -78,12 +80,13 @@ describe('statusCopy: screen readers and unknown destinations', () => {
 });
 
 describe('the reassurance rule (§5): enforced as a loop, not per reason', () => {
-  it('lists every reason exactly once across the four groups', () => {
+  it('lists every reason exactly once across the five groups', () => {
     const all = [
       ...ALL_IDENTITY_FAILURES,
       ...ALL_CLEARING_FAILURES,
       ...ALL_VOUCHER_FAILURES,
       ...ALL_REGISTRATION_FAILURES,
+      ...ALL_RISK_FAILURES,
     ];
     expect(new Set(all).size).toBe(all.length);
   });
@@ -99,6 +102,11 @@ describe('the reassurance rule (§5): enforced as a loop, not per reason', () =>
   });
 
   it.each(ALL_VOUCHER_FAILURES)('%s never says the money is safe: pre-clearing, unchanged', (reason) => {
+    expect(isClearingFailure(reason)).toBe(false);
+    expect(failureMessage(reason)).not.toContain('safe');
+  });
+
+  it.each(ALL_RISK_FAILURES)('%s never says the money is safe: nothing was charged', (reason) => {
     expect(isClearingFailure(reason)).toBe(false);
     expect(failureMessage(reason)).not.toContain('safe');
   });
@@ -187,5 +195,46 @@ describe('payout.accountWrongLength', () => {
     expect(payout.accountWrongLength('Absa', [8, 9, 10, 11])).toBe(
       'Absa account numbers have 8, 9, 10 or 11 digits.',
     );
+  });
+});
+
+describe('the risk check copy: plain words, and never why', () => {
+  const everything = [
+    riskCheck.title,
+    riskCheck.question,
+    riskCheck.explain,
+    riskCheck.never,
+    riskCheck.continue,
+    riskCheck.continueLabel,
+    riskCheck.stop,
+    riskCheck.stopLabel,
+    riskCheck.stoppedTitle,
+    ...riskCheck.stoppedPoints,
+    riskCheck.done,
+    riskCheck.doneLabel,
+    ...ALL_RISK_FAILURES.map(failureMessage),
+  ];
+
+  it('asks about being told to buy the voucher or read the PIN out loud', () => {
+    expect(riskCheck.question).toMatch(/buy this voucher/);
+    expect(riskCheck.question).toMatch(/read the PIN out loud/);
+  });
+
+  it.each(everything)('never shows a number of any kind: %s', (text) => {
+    expect(text).not.toMatch(/[0-9]/);
+  });
+
+  it.each(everything)('never explains the decision: %s', (text) => {
+    expect(text).not.toMatch(/score|risk|rule|flag|threshold|suspicious|unusual|pattern/i);
+  });
+
+  it('offers exactly two ways on: continue, or stop and get help', () => {
+    expect(riskCheck.continue).toBe('Continue');
+    expect(riskCheck.stop).toBe('Stop and get help');
+  });
+
+  it('tells a stopped user nothing was taken and the voucher is unused', () => {
+    expect(riskCheck.stoppedPoints[0]).toMatch(/Nothing was taken/);
+    expect(riskCheck.stoppedPoints[0]).toMatch(/hasn't been used/);
   });
 });

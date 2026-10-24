@@ -148,7 +148,33 @@ export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
   branch_code_not_found: true,
 };
 
-export type FailureReason = IdentityFailure | ClearingFailure | VoucherFailure | RegistrationFailure;
+/**
+ * The backend's deposit risk check (KasiDepositApi app/risk.py), answered BEFORE anything is
+ * charged. Neither says why, by design: the server never tells the client which rule fired or
+ * what it scored, and the app must never show a score either.
+ *   confirmation_required  show the "did anyone ask you to do this?" check; Continue resends
+ *                          the same deposit (same Idempotency-Key) with `riskAcknowledged`.
+ *   deposit_declined       refused; acknowledging makes no difference. The voucher is unused.
+ * Only ever thrown by `createDeposit`.
+ */
+export type RiskFailure = 'confirmation_required' | 'deposit_declined';
+
+export const RISK_FAILURE_REASONS: Record<RiskFailure, true> = {
+  confirmation_required: true,
+  deposit_declined: true,
+};
+
+export type FailureReason =
+  | IdentityFailure
+  | ClearingFailure
+  | VoucherFailure
+  | RegistrationFailure
+  | RiskFailure;
+
+export interface CreateDepositOptions {
+  /** True only after the user chose Continue on the risk check (`confirmation_required`). */
+  riskAcknowledged?: boolean;
+}
 
 /**
  * What registering sends: who the user is. Where they are paid is added afterwards, as a payout

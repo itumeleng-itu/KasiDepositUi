@@ -1,13 +1,20 @@
 /**
  * Wire format for the real backend, kept apart from http.ts so it can be unit-tested.
  *
- * ASSUMED contract (nothing on the backend exists yet; change here when it does):
+ * The contract of KasiDepositApi's /v1 (app/routes/v1.py there). Paths are relative to
+ * EXPO_PUBLIC_API_BASE_URL, which ends in /v1:
  *   POST /vouchers/lookup   { pin }                                  -> voucher lookup
  *   GET  /shapid/{shapId}   (ShapID URL-encoded: + and @ survive)    -> resolved ShapID
- *   POST /deposits          { voucher_token, payout_method_id }      -> deposit
- *                           with an `Idempotency-Key` header
+ *                           (the app does not call this today; adding a PayShap number checks it)
+ *   POST /deposits          { voucher_token, payout_method_id, risk_acknowledged? } -> deposit
+ *                           with an `Idempotency-Key` header. Risk-checked before anything is
+ *                           charged: 409 confirmation_required (resend the same request, same
+ *                           key, with risk_acknowledged: true once the user says go on) or
+ *                           403 deposit_declined. Neither carries a score or a rule.
  *   GET  /deposits/{id}                                              -> deposit
  *   POST /users             { full_names, id_number, privacy_notice_version } -> registered user
+ *                           (the backend does not record privacy_notice_version yet; it ignores
+ *                           fields it does not know)
  *   GET  /me/deposits                                                -> { deposits: [...] }
  *   GET  /me/payout-methods                                          -> { payout_methods: [...] }
  *   POST /me/payout-methods { kind: shap_id, shap_id } | { kind: account, bank, account_number }
@@ -15,10 +22,16 @@
  *   POST /me/payout-methods/{id}/default                             -> { payout_methods: [...] }
  *   DELETE /me/payout-methods/{id}                                   -> { payout_methods: [...] }
  *   GET  /branch-codes/{code}                                        -> { bank, bank_name }
- *                           PLACEHOLDER: the branch-code API is still to come; `bank` is a
- *                           BANK_API_CODES value, or null for a bank we can't pay into
- *   Every call except POST /users and GET /shapid sends `Authorization: Bearer <token>`; a
- *   missing, unknown or revoked token is 401 `{ "reason": "not_registered" }`.
+ *                           PLACEHOLDER: not on the backend yet, so the real client gets a 404
+ *                           (read as `unknown`); `bank` is a BANK_API_CODES value, or null for a
+ *                           bank we can't pay into
+ *   Every call except POST /users and GET /branch-codes sends `Authorization: Bearer <token>`,
+ *   GET /shapid included; a missing, unknown or revoked token is 401
+ *   `{ "reason": "not_registered" }`.
+ *   Rate limits: GET /shapid and POST /users per client IP, POST /vouchers/lookup and
+ *   GET /deposits/{id} per token (well above the app's polling, src/polling.ts). Over a limit is
+ *   429 `{ "reason": "rate_limited" }` with Retry-After; `interpretErrorResponse` treats a 429
+ *   like no signal, so the user is told to try again rather than blamed.
  *   JSON is snake_case. Errors are 4xx with `{ "reason": "<FailureReason>" }` or FastAPI's
  *   `{ "detail": { "reason": "<FailureReason>" } }`.
  */
@@ -30,9 +43,11 @@ import {
   CLEARING_FAILURE_REASONS,
   IDENTITY_FAILURE_REASONS,
   REGISTRATION_FAILURE_REASONS,
+  RISK_FAILURE_REASONS,
   VOUCHER_FAILURE_REASONS,
   type BranchCodeLookup,
   type ClearingFailure,
+  type CreateDepositOptions,
   type Deposit,
   type DepositRecord,
   type NewPayoutMethod,
@@ -80,7 +95,8 @@ function isFailureReason(value: unknown): value is FailureReason {
     (Object.prototype.hasOwnProperty.call(IDENTITY_FAILURE_REASONS, value) ||
       Object.prototype.hasOwnProperty.call(CLEARING_FAILURE_REASONS, value) ||
       Object.prototype.hasOwnProperty.call(VOUCHER_FAILURE_REASONS, value) ||
-      Object.prototype.hasOwnProperty.call(REGISTRATION_FAILURE_REASONS, value))
+      Object.prototype.hasOwnProperty.call(REGISTRATION_FAILURE_REASONS, value) ||
+      Object.prototype.hasOwnProperty.call(RISK_FAILURE_REASONS, value))
   );
 }
 
@@ -195,6 +211,19 @@ export function parseDeposit(body: unknown): Deposit {
       : 'unknown';
   }
   return deposit;
+}
+
+/** `risk_acknowledged` is sent only when true, so an ordinary deposit is byte-for-byte as before. */
+export function createDepositToWire(
+  voucherToken: string,
+  payoutMethodId: string,
+  options: CreateDepositOptions = {},
+) {
+  return {
+    voucher_token: voucherToken,
+    payout_method_id: payoutMethodId,
+    ...(options.riskAcknowledged === true ? { risk_acknowledged: true } : {}),
+  };
 }
 
 export function registrationToWire(registration: Registration) {

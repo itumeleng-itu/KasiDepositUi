@@ -2,6 +2,7 @@ import { currentAccessToken } from '../storage/user';
 import { ApiError } from './errors';
 import type { ApiClient } from './client';
 import {
+  createDepositToWire,
   interpretErrorResponse,
   newPayoutMethodToWire,
   parseAddedPayoutMethod,
@@ -97,9 +98,9 @@ export const httpApi: ApiClient = {
     return parseResolvedShapId(body);
   },
 
-  async createDeposit(voucherToken, payoutMethodId, idempotencyKey) {
+  async createDeposit(voucherToken, payoutMethodId, idempotencyKey, options) {
     const body = await request('POST', '/deposits', {
-      body: { voucher_token: voucherToken, payout_method_id: payoutMethodId },
+      body: createDepositToWire(voucherToken, payoutMethodId, options),
       headers: { 'Idempotency-Key': idempotencyKey },
     });
     return parseDeposit(body);

@@ -3,6 +3,7 @@ import { PRIVACY_NOTICE_VERSION } from '../privacy';
 import { ApiError } from './errors';
 import {
   BANK_API_CODES,
+  createDepositToWire,
   interpretErrorResponse,
   parseDeposit,
   newPayoutMethodToWire,
@@ -322,5 +323,31 @@ describe('parseBranchCodeLookup', () => {
 
   it('rejects a body without a bank name', () => {
     expect(() => parseBranchCodeLookup({ bank: 'NEDBANK' })).toThrow();
+  });
+});
+
+describe('deposit risk on the wire', () => {
+  it('reads the two risk refusals as business errors, not as unknown', () => {
+    expect(interpretErrorResponse(409, { reason: 'confirmation_required' })).toMatchObject({
+      kind: 'business',
+      reason: 'confirmation_required',
+    });
+    expect(interpretErrorResponse(403, { reason: 'deposit_declined' })).toMatchObject({
+      kind: 'business',
+      reason: 'deposit_declined',
+    });
+  });
+
+  it('sends risk_acknowledged only once the user has said go on', () => {
+    expect(createDepositToWire('vt', 'pm')).toEqual({ voucher_token: 'vt', payout_method_id: 'pm' });
+    expect(createDepositToWire('vt', 'pm', { riskAcknowledged: false })).toEqual({
+      voucher_token: 'vt',
+      payout_method_id: 'pm',
+    });
+    expect(createDepositToWire('vt', 'pm', { riskAcknowledged: true })).toEqual({
+      voucher_token: 'vt',
+      payout_method_id: 'pm',
+      risk_acknowledged: true,
+    });
   });
 });
