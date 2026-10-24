@@ -130,3 +130,18 @@ export async function syncHistory(local?: Redemption[]): Promise<HistoryResult> 
   });
   return { items, fromPhoneOnly: false };
 }
+
+/**
+ * Forget every deposit this phone has saved.
+ *
+ * Only the phone's copy: the deposits themselves are the server's, and
+ * signing back in with the same ID brings the history straight back
+ * (see `syncHistory`). Used by `signOut`.
+ */
+export async function clearHistory(): Promise<void> {
+  const ids = await readIndex();
+  await Promise.all([
+    ...ids.map((id) => SecureStore.deleteItemAsync(historyEntryKey(id)).catch(() => {})),
+    SecureStore.deleteItemAsync(HISTORY_INDEX_KEY).catch(() => {}),
+  ]);
+}

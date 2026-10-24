@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../src/components/Button';
 import { Screen } from '../src/components/Screen';
-import { common, privacy } from '../src/copy';
+import { common, privacy, session } from '../src/copy';
 import { INFORMATION_OFFICER_CONTACT, PRIVACY_NOTICE_VERSION } from '../src/privacy';
+import { signOut } from '../src/storage/session';
 import { colors, radius, spacing, type } from '../src/theme';
 
 /**
@@ -13,6 +15,28 @@ import { colors, radius, spacing, type } from '../src/theme';
  * screen readers, so the page can be skimmed by heading.
  */
 export default function PrivacyScreen() {
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Confirmed first: signing out is not destructive to the account, but
+  // it does mean typing an ID number again, and a mis-tap on a screen
+  // someone opened to read about privacy would be a nasty surprise.
+  function askToSignOut() {
+    Alert.alert(session.confirmTitle, session.confirmBody, [
+      { text: session.cancel, style: 'cancel' },
+      {
+        text: session.confirm,
+        style: 'destructive',
+        onPress: () => {
+          setSigningOut(true);
+          // Always land on registering, even if a key refused to clear:
+          // signOut swallows its own failures, and the launcher sends a
+          // phone with no user here anyway.
+          void signOut().finally(() => router.replace('/register'));
+        },
+      },
+    ]);
+  }
+
   return (
     <Screen>
       <Button variant="text" align="start" label={common.back} onPress={() => router.back()} />
@@ -50,6 +74,19 @@ export default function PrivacyScreen() {
             : privacy.contactPending}
         </Text>
         <Text style={styles.body}>{privacy.regulator}</Text>
+      </View>
+
+      <View style={[styles.section, styles.contact]}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          {session.heading}
+        </Text>
+        <Text style={styles.body}>{session.body}</Text>
+        <Button
+          variant="secondary"
+          label={session.signOut}
+          disabled={signingOut}
+          onPress={askToSignOut}
+        />
       </View>
 
       <Text style={styles.version}>{privacy.version(PRIVACY_NOTICE_VERSION)}</Text>

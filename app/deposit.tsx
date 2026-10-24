@@ -1,16 +1,17 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PayoutMethod } from '../src/api/types';
 import { Button } from '../src/components/Button';
 import { DestinationLine } from '../src/components/DestinationLine';
 import { DigitsField } from '../src/components/DigitsField';
+import { Icon } from '../src/components/Icon';
 import { Screen } from '../src/components/Screen';
 import { deposit } from '../src/copy';
 import { PIN_GROUPING, PIN_LENGTH } from '../src/domain/pin';
 import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
-import { colors, PIN_MAX_FONT_SCALE, spacing, type } from '../src/theme';
+import { colors, PIN_MAX_FONT_SCALE, size, spacing, type } from '../src/theme';
 import { attemptVoucherLookup } from '../src/voucherLookup';
 
 /**
@@ -66,11 +67,26 @@ export default function DepositScreen() {
         />
       ) : null}
 
-      <View style={styles.heading}>
-        <Text accessibilityRole="header" style={styles.title}>
-          {deposit.heading}
-        </Text>
-        <Text style={styles.helper}>{deposit.helper}</Text>
+      <View style={styles.headingRow}>
+        <View style={styles.heading}>
+          <Text accessibilityRole="header" style={styles.title}>
+            {deposit.heading}
+          </Text>
+          <Text style={styles.helper}>{deposit.helper}</Text>
+        </View>
+        {/* An icon, so it stops competing with the two real actions --
+            but it still needs a name of its own, because an icon alone
+            tells a screen reader nothing. */}
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel={deposit.privacyButton}
+          hitSlop={spacing.sm}
+          style={styles.privacy}
+        >
+          <Icon name="shield" color={colors.inkMuted} />
+        </Pressable>
       </View>
 
       <View style={styles.pin}>
@@ -101,32 +117,46 @@ export default function DepositScreen() {
         loading={loading}
       />
 
-      <Button
-        variant="text"
-        label={deposit.scanButton}
-        onPress={() => router.push('/scan')}
-        disabled={loading}
-      />
-
-      <Button
-        variant="text"
-        label={deposit.historyButton}
-        onPress={() => router.push('/history')}
-        disabled={loading}
-      />
-
-      <Button
-        variant="text"
-        label={deposit.privacyButton}
-        onPress={() => router.push('/privacy')}
-        disabled={loading}
-      />
+      {/* Two ways on from here, side by side: they are alternatives to
+          each other, and stacking them read as a list of three equal
+          things with the privacy link. Each half is flex:1 so the row
+          splits evenly whatever the label length. */}
+      <View style={styles.row}>
+        <View style={styles.half}>
+          <Button
+            variant="secondary"
+            label={deposit.scanButton}
+            onPress={() => router.push('/scan')}
+            disabled={loading}
+          />
+        </View>
+        <View style={styles.half}>
+          <Button
+            variant="secondary"
+            label={deposit.historyButton}
+            onPress={() => router.push('/history')}
+            disabled={loading}
+          />
+        </View>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: { gap: spacing.sm },
+  headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  heading: { flex: 1, gap: spacing.sm },
+  // 48dp so the icon is still a full touch target.
+  privacy: {
+    width: size.touch,
+    height: size.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -spacing.md,
+    marginRight: -spacing.md,
+  },
+  row: { flexDirection: 'row', gap: spacing.md },
+  half: { flex: 1 },
   title: { ...type.headline, color: colors.ink },
   helper: { ...type.body, color: colors.inkMuted },
   pin: { gap: spacing.sm },

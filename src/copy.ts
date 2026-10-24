@@ -323,6 +323,18 @@ export function formatSentAt(epochMs: number): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
 }
 
+/** Signing this phone out. Lives on the privacy screen, because that is
+    where "what this phone keeps about me" is already explained. */
+export const session = {
+  heading: 'This phone',
+  body: "Signing out removes your details, your saved payout methods and your deposits from this phone. Nothing is deleted from your account — enter the same names and ID number again and everything comes back.",
+  signOut: 'Sign out of this phone',
+  confirmTitle: 'Sign out of this phone?',
+  confirmBody: "You'll need your names and ID number to sign in again.",
+  confirm: 'Sign out',
+  cancel: 'Stay signed in',
+} as const;
+
 export const history = {
   title: 'Your deposits',
   empty: 'Deposits you make will show here.',
