@@ -1,4 +1,4 @@
-import { useState, type Ref } from 'react';
+import { useState, type ComponentRef, type Ref } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps, type TextStyle } from 'react-native';
 
 import { borderWidth, colors, radius, size, spacing, type } from '../theme';
@@ -9,7 +9,10 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   /** Shown under the field with an icon, so the state is not colour alone. */
   error?: string | null;
   helper?: string;
-  inputRef?: Ref<TextInput>;
+  // ComponentRef, not Ref<TextInput>: from React Native 0.88 the exported
+  // TextInput is the component, whose instance type is separate. Ref<TextInput>
+  // now means "a ref to the component function", which is not what a caller holds.
+  inputRef?: Ref<ComponentRef<typeof TextInput>>;
   /** Overrides for the input text, e.g. the larger PIN style. */
   inputStyle?: TextStyle;
   /** Keep the label for screen readers but do not draw it (the screen's heading already says it). */

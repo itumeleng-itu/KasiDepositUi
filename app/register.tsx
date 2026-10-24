@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api } from '../src/api/client';
@@ -33,7 +33,7 @@ export default function RegisterScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
-  const idRef = useRef<TextInput>(null);
+  const idRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   const namesError = validateFullNames(fullNames);
   const id = parseSaId(idNumber);
