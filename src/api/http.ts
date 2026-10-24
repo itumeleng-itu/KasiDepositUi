@@ -17,12 +17,23 @@ import {
 
 const TIMEOUT_MS = 15_000;
 
+/**
+ * The hosted backend, used when nothing overrides it.
+ *
+ * Committed on purpose. EXPO_PUBLIC_* values are baked into the bundle and
+ * readable by anyone who unpacks the app, so this is not a secret — and
+ * without a default, a build made without an env file threw on its first
+ * request. An app that someone else installs has no .env, so the address
+ * of the server it talks to has to be in the app.
+ *
+ * Override it for a local backend by setting EXPO_PUBLIC_API_BASE_URL (see
+ * .env.example), or bypass the network entirely with
+ * EXPO_PUBLIC_USE_FAKE_API=true.
+ */
+const DEFAULT_API_BASE_URL = 'https://kasidepositapi.onrender.com/v1';
+
 function baseUrl(): string {
-  const url = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (!url) {
-    // A configuration mistake, not something the user did. Fail loudly in development.
-    throw new Error('EXPO_PUBLIC_API_BASE_URL is not set');
-  }
+  const url = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
   return url.replace(/\/+$/, '');
 }
 

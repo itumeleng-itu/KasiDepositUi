@@ -316,6 +316,10 @@ export const history = {
   sent: 'Sent',
   status: 'Status',
   reference: 'Reference',
+  /** The number on the till slip, so her phone and her paper agree. Shown
+      only when the server knows it; older deposits have no serial. */
+  voucherSerial: 'Voucher from the shop',
+  voucherSerialHint: 'The serial on your till slip. Give this or the reference if you ask the shop about this deposit.',
   viewStatus: 'Follow this deposit',
   checking: 'Checking the latest status',
   syncing: 'Checking for new deposits',

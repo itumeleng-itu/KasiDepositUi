@@ -151,6 +151,20 @@ export default function RedemptionScreen() {
             {item.reference}
           </Text>
         </View>
+
+        {/* The slip's own number, so this deposit and the piece of paper
+            she was handed name the same thing. Only when the server knows
+            it: older deposits carry no serial, and an empty row would
+            just be a question mark. */}
+        {item.voucherSerial ? (
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>{history.voucherSerial}</Text>
+            <Text selectable style={styles.rowValue}>
+              {item.voucherSerial}
+            </Text>
+            <Text style={styles.muted}>{history.voucherSerialHint}</Text>
+          </View>
+        ) : null}
       </View>
 
       {!isTerminal(item.status) ? (

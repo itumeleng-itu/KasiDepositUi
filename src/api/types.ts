@@ -177,6 +177,13 @@ export interface DepositRecord extends Deposit {
   /** Epoch milliseconds. */
   createdAt: number;
   destination: StoredDestination;
+  /**
+   * The serial printed on the till slip this voucher came from, when the
+   * server knows it. The one identifier this deposit and that piece of
+   * paper share: without it, neither she nor the cashier can match her
+   * phone to the slip when a deposit needs chasing up.
+   */
+  voucherSerial?: string;
 }
 
 export interface Deposit {
