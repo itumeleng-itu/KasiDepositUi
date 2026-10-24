@@ -30,6 +30,13 @@ export interface Redemption {
   /** The last status this phone saw. Only as fresh as the last time a screen asked the server. */
   status: DepositStatus;
   failureReason?: ClearingFailure | VoucherFailure;
+  /**
+   * The serial on the till slip this voucher came from. Learnt from the
+   * server's history, not at Send time: the phone only ever sees a PIN,
+   * and the serial is printed on the paper. Absent for a deposit this
+   * phone saved before the server was asked, and for older deposits.
+   */
+  voucherSerial?: string;
 }
 
 /**
@@ -76,6 +83,14 @@ export function parseRedemption(raw: string): Redemption | null {
   if (!isDepositStatus(status)) return null;
   if (failureReason !== undefined && !isDepositFailureReason(failureReason)) return null;
 
+  // Optional, and no version bump: a record saved before the serial
+  // existed simply has none, and still parses. Anything that is not a
+  // non-empty string is treated as absent rather than failing the row.
+  const voucherSerial =
+    typeof record.voucherSerial === 'string' && record.voucherSerial.length > 0
+      ? record.voucherSerial
+      : undefined;
+
   const destination = parseStoredDestination(record.destination);
   if (destination === null) return null;
 
@@ -89,6 +104,7 @@ export function parseRedemption(raw: string): Redemption | null {
     destination,
     status,
     ...(failureReason !== undefined ? { failureReason } : {}),
+    ...(voucherSerial !== undefined ? { voucherSerial } : {}),
   };
 }
 
@@ -146,6 +162,7 @@ export function fromDepositRecord(record: DepositRecord): Redemption {
     destination: record.destination,
     status: record.status,
     ...(record.failureReason !== undefined ? { failureReason: record.failureReason } : {}),
+    ...(record.voucherSerial !== undefined ? { voucherSerial: record.voucherSerial } : {}),
   };
 }
 

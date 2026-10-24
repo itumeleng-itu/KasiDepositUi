@@ -292,7 +292,19 @@ function parseDepositRecord(value: unknown): DepositRecord | null {
   } catch {
     return null;
   }
-  return { ...deposit, valueCents: value.value_cents, feeCents: value.fee_cents, createdAt, destination };
+  // Optional: older deposits, and any whose voucher has since gone, have
+  // none. Never a reason to drop the row — the rest of it is still true.
+  const voucherSerial = typeof value.voucher_serial === 'string' && value.voucher_serial.length > 0
+    ? value.voucher_serial
+    : undefined;
+  return {
+    ...deposit,
+    valueCents: value.value_cents,
+    feeCents: value.fee_cents,
+    createdAt,
+    destination,
+    voucherSerial,
+  };
 }
 
 /**

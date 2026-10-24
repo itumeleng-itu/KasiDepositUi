@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react';
+import type { ComponentRef, ReactNode, RefObject } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,7 +6,8 @@ import { colors, size, spacing } from '../theme';
 
 interface ScreenProps {
   children: ReactNode;
-  scrollRef?: RefObject<ScrollView | null>;
+  // See TextField: the instance type, not the component type.
+  scrollRef?: RefObject<ComponentRef<typeof ScrollView> | null>;
 }
 
 /**
