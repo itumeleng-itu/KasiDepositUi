@@ -64,7 +64,8 @@ export function Button({
 function labelColor(variant: Variant, disabled: boolean): string {
   if (variant === 'primary') return disabled ? colors.onDisabled : colors.onPrimary;
   if (variant === 'secondary') return disabled ? colors.inkMuted : colors.ink;
-  return disabled ? colors.inkMuted : colors.primary;
+  // A text button is a mark, not a fill: mint would be 1.8:1 on paper.
+  return disabled ? colors.inkMuted : colors.accent;
 }
 
 const styles = StyleSheet.create({

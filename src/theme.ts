@@ -14,29 +14,48 @@ import type { TextStyle } from 'react-native';
  *   ink on card 19.1:1, muted 6.2:1   disabled text 5.2:1 on its fill
  *   field border (line) 3.9:1 on paper, 3.4:1 on surface (non-text needs 3:1)
  */
+/**
+ * Light palette.
+ *
+ * The mint stays, because it is the brand, but it moves job: at 1.8:1 on
+ * white it cannot carry text, while a mint fill under near-black text
+ * reads at 10.6:1. So mint is a FILL colour and `accent` (a dark green,
+ * 5.4:1 on white) carries text, links and focus. The dark green is the
+ * same one the cashier's till page uses, so the two halves of the product
+ * look like one thing.
+ *
+ * Two line weights on purpose: anything that bounds a control has to meet
+ * WCAG 1.4.11 at 3:1, which `border` does and a hairline divider need not.
+ */
 export const colors = {
   /** The screen background. */
-  paper: '#0E100E',
+  paper: '#FFFFFF',
   /** Fields, bank rows, history rows and quiet panels. */
-  surface: '#1C1F1C',
-  ink: '#FFFFFF',
-  inkMuted: '#A7ADA7',
-  /** Mint green: primary buttons, links, focus, selection. */
+  surface: '#F4F6F4',
+  ink: '#0E100E',
+  inkMuted: '#5C635C',
+  /** Mint green: FILLS only — buttons, checks, selected states. Never text. */
   primary: '#86D38A',
   onPrimary: '#0E100E',
+  /** Dark green: text, links, focus rings, icons that must read on paper. */
+  accent: '#0B7A52',
   /** Selected row and pressed rows. */
-  primaryTint: '#233524',
-  success: '#86D38A',
-  successTint: '#233524',
-  error: '#FF8F87',
-  errorTint: '#3A2220',
-  line: '#6B726B',
-  disabled: '#2A2E2A',
-  onDisabled: '#9AA09A',
-  /** The white hero card that holds the one big amount on a screen. */
-  card: '#FFFFFF',
-  onCard: '#0E100E',
-  onCardMuted: '#5C635C',
+  primaryTint: '#E7F5EE',
+  success: '#0B7A52',
+  successTint: '#E7F5EE',
+  error: '#B3261E',
+  errorTint: '#FDECEA',
+  /** Bounds a control: meets 3:1 against BOTH paper and surface, which
+   *  is what fails first — a field sitting on the grey panel. */
+  border: '#828B83',
+  /** Hairline between rows; decorative, so it may be lighter. */
+  line: '#DDE2DE',
+  disabled: '#E8EBE8',
+  onDisabled: '#5C635C',
+  /** The hero card that holds the one big amount on a screen. */
+  card: '#0E100E',
+  onCard: '#FFFFFF',
+  onCardMuted: '#A7ADA7',
 } as const;
 
 /** 4-point scale. */

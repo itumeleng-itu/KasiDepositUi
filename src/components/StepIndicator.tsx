@@ -64,7 +64,8 @@ const styles = StyleSheet.create({
   step: { flex: 1, alignItems: 'center', gap: spacing.sm },
   track: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch' },
   line: { flex: 1, height: borderWidth.thick },
-  lineDone: { backgroundColor: colors.primary },
+  // A 2dp rule needs 3:1 against paper; mint gives 1.8:1.
+  lineDone: { backgroundColor: colors.accent },
   lineTodo: { backgroundColor: colors.line },
   circle: {
     width: size.stepIcon,
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
   circleCurrent: {
     backgroundColor: colors.surface,
     borderWidth: borderWidth.thick * 2,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   circleTodo: {
     backgroundColor: colors.surface,
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   number: { ...type.label, color: colors.inkMuted },
-  numberCurrent: { color: colors.primary, fontFamily: fontFamily.bold },
+  numberCurrent: { color: colors.accent, fontFamily: fontFamily.bold },
   label: { ...type.label, color: colors.ink, textAlign: 'center' },
   labelTodo: { color: colors.inkMuted, fontFamily: fontFamily.regular },
 });

@@ -73,7 +73,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     color: colors.ink,
   },
-  inputFocused: { borderWidth: borderWidth.thick, borderColor: colors.primary },
+  // The focus ring has to be visible against paper, so it is the accent.
+  inputFocused: { borderWidth: borderWidth.thick, borderColor: colors.accent },
   inputError: { borderWidth: borderWidth.thick, borderColor: colors.error },
   helper: { ...type.caption, color: colors.inkMuted },
 });

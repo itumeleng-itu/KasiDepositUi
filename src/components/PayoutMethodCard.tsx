@@ -38,7 +38,7 @@ export function PayoutMethodCard({ method, onSelect, onRemove, disabled = false 
           <Text style={styles.kind}>{kind}</Text>
           {selected ? (
             <View style={styles.badge}>
-              <Icon name="check" color={colors.primary} size={size.iconSmall} />
+              <Icon name="check" color={colors.accent} size={size.iconSmall} />
               <Text style={styles.badgeText}>{payout.payingInto}</Text>
             </View>
           ) : null}
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   cardSelected: {
     backgroundColor: colors.primaryTint,
     borderWidth: borderWidth.thick,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   main: { minHeight: size.touch, gap: spacing.xs, padding: spacing.lg, paddingBottom: spacing.sm },
   option: { minHeight: size.touch, gap: spacing.xs, padding: spacing.lg },
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   },
   kind: { ...type.label, color: colors.inkMuted },
   badge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  badgeText: { ...type.label, fontFamily: fontFamily.bold, color: colors.primary },
+  badgeText: { ...type.label, fontFamily: fontFamily.bold, color: colors.accent },
   primary: { ...type.title, color: colors.ink },
   secondary: { ...type.body, color: colors.inkMuted },
   footer: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.sm },

@@ -1,8 +1,50 @@
-import { StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { borderWidth, colors, size as sizes } from '../theme';
+import { colors, size as sizes } from '../theme';
 
-export type IconName = 'check' | 'cross' | 'alert';
+/**
+ * One icon.
+ *
+ * These were drawn from plain Views so that no icon font was needed. That
+ * held while there were three of them and they were all strokes; it does
+ * not hold for a bank, a phone or a camera, and hand-drawn glyphs next to
+ * real typography are what make an app look unfinished. Material Icons
+ * ships with Expo, is already pinned by the SDK, and is one font file.
+ *
+ * `name` stays our own vocabulary rather than the font's, so the screens
+ * read in our terms and a change of icon set is one map, not a sweep.
+ * The three original names still work.
+ */
+export type IconName =
+  | 'check'
+  | 'cross'
+  | 'alert'
+  | 'back'
+  | 'forward'
+  | 'camera'
+  | 'bank'
+  | 'phone'
+  | 'clock'
+  | 'shield'
+  | 'receipt'
+  | 'add'
+  | 'info';
+
+const GLYPH: Record<IconName, React.ComponentProps<typeof MaterialIcons>['name']> = {
+  check: 'check',
+  cross: 'close',
+  alert: 'error-outline',
+  back: 'arrow-back',
+  forward: 'chevron-right',
+  camera: 'photo-camera',
+  bank: 'account-balance',
+  phone: 'smartphone',
+  clock: 'schedule',
+  shield: 'lock-outline',
+  receipt: 'receipt-long',
+  add: 'add',
+  info: 'info-outline',
+};
 
 interface IconProps {
   name: IconName;
@@ -10,77 +52,18 @@ interface IconProps {
   size?: number;
 }
 
-// Icons are drawn from plain Views so no icon font or library is needed. They are decorative:
-// the text next to them carries the meaning, so screen readers skip them.
-const CHECK_WIDTH = 0.32;
-const CHECK_HEIGHT = 0.6;
-const CHECK_LIFT = 0.08;
-const CROSS_LENGTH = 0.8;
-
+/**
+ * Decorative by default: the text beside an icon carries the meaning, so
+ * screen readers skip it rather than announcing it twice.
+ */
 export function Icon({ name, color = colors.ink, size = sizes.icon }: IconProps) {
-  const stroke = borderWidth.thick;
-
   return (
-    <View
-      style={[styles.box, { width: size, height: size }]}
+    <MaterialIcons
+      name={GLYPH[name]}
+      size={size}
+      color={color}
       accessible={false}
       importantForAccessibility="no-hide-descendants"
-    >
-      {name === 'check' && (
-        <View
-          style={{
-            width: size * CHECK_WIDTH,
-            height: size * CHECK_HEIGHT,
-            borderColor: color,
-            borderRightWidth: stroke,
-            borderBottomWidth: stroke,
-            marginTop: -size * CHECK_LIFT,
-            transform: [{ rotate: '45deg' }],
-          }}
-        />
-      )}
-      {name === 'cross' && (
-        <>
-          <View
-            style={[
-              styles.bar,
-              { width: size * CROSS_LENGTH, height: stroke, backgroundColor: color },
-              { transform: [{ rotate: '45deg' }] },
-            ]}
-          />
-          <View
-            style={[
-              styles.bar,
-              { width: size * CROSS_LENGTH, height: stroke, backgroundColor: color },
-              { transform: [{ rotate: '-45deg' }] },
-            ]}
-          />
-        </>
-      )}
-      {name === 'alert' && (
-        <View
-          style={[
-            styles.box,
-            {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              borderWidth: stroke,
-              borderColor: color,
-            },
-          ]}
-        >
-          <Text style={[styles.exclaim, { color, fontSize: size * 0.6, lineHeight: size * 0.8 }]}>
-            !
-          </Text>
-        </View>
-      )}
-    </View>
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  box: { alignItems: 'center', justifyContent: 'center' },
-  bar: { position: 'absolute' },
-  exclaim: { fontWeight: '700', textAlign: 'center', includeFontPadding: false },
-});

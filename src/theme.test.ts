@@ -15,14 +15,29 @@ function contrast(a: string, b: string): number {
 }
 
 describe('palette', () => {
-  it('has one accent: primary and success are the same green', () => {
-    expect(colors.success).toBe(colors.primary);
+  it('has one green for marks: success is the accent', () => {
+    expect(colors.success).toBe(colors.accent);
     expect(colors.successTint).toBe(colors.primaryTint);
   });
 
-  it('is dark: the background is darker than every panel drawn on it', () => {
-    for (const panel of [colors.surface, colors.primaryTint, colors.disabled, colors.card]) {
-      expect(luminance(colors.paper)).toBeLessThan(luminance(panel));
+  it('is light: the background is lighter than every panel drawn on it', () => {
+    for (const panel of [colors.surface, colors.primaryTint, colors.disabled]) {
+      expect(luminance(colors.paper)).toBeGreaterThan(luminance(panel));
+    }
+  });
+
+  it('keeps the hero card inverted, so it still stands off the page', () => {
+    // On a white page a white card is invisible; the one big amount is
+    // the thing a screen exists to show, so its card goes dark.
+    expect(luminance(colors.card)).toBeLessThan(luminance(colors.paper));
+  });
+
+  it('never lets the mint be used as a mark', () => {
+    // The brand mint is a FILL. It is 1.8:1 on paper, so any screen that
+    // drew text, an icon or a border in it would be unreadable. This is
+    // the rule the components follow; it is asserted so it stays true.
+    for (const background of [colors.paper, colors.surface, colors.primaryTint]) {
+      expect(contrast(colors.primary, background)).toBeLessThan(3);
     }
   });
 });
@@ -37,9 +52,9 @@ describe('colour contrast', () => {
     ['muted ink on surface', colors.inkMuted, colors.surface],
     ['dark on primary button', colors.onPrimary, colors.primary],
     ['white on disabled button', colors.onDisabled, colors.disabled],
-    ['primary on paper (text buttons)', colors.primary, colors.paper],
-    ['primary on surface (secondary button)', colors.primary, colors.surface],
-    ['primary on primary tint (selected bank)', colors.primary, colors.primaryTint],
+    ['accent on paper (text buttons)', colors.accent, colors.paper],
+    ['accent on surface (secondary button)', colors.accent, colors.surface],
+    ['accent on primary tint (selected bank)', colors.accent, colors.primaryTint],
     ['success on paper', colors.success, colors.paper],
     ['success on success tint', colors.success, colors.successTint],
     ['error on paper', colors.error, colors.paper],
@@ -54,9 +69,10 @@ describe('colour contrast', () => {
 
   // Borders and icons are non-text: 3:1.
   it.each([
-    ['field border on paper', colors.line, colors.paper],
-    ['field border on surface', colors.line, colors.surface],
-    ['selected bank border on tint', colors.primary, colors.primaryTint],
+    ['field border on paper', colors.border, colors.paper],
+    ['field border on surface', colors.border, colors.surface],
+    ['selected bank border on tint', colors.accent, colors.primaryTint],
+    ['focus ring on paper', colors.accent, colors.paper],
   ])('%s meets 3:1', (_name, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
   });

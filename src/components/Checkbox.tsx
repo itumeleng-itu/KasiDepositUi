@@ -53,6 +53,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   boxIdle: { borderWidth: borderWidth.thick, borderColor: colors.line },
-  boxChecked: { backgroundColor: colors.primary, borderWidth: borderWidth.thick, borderColor: colors.primary },
+  // Mint fill (the tick on it reads at 10.6:1), accent edge so the box
+  // still has a visible boundary on paper.
+  boxChecked: { backgroundColor: colors.primary, borderWidth: borderWidth.thick, borderColor: colors.accent },
   label: { ...type.body, flex: 1, color: colors.ink },
 });

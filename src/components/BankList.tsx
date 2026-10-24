@@ -53,7 +53,7 @@ function BankRow({ name, selected, onPress }: { name: string; selected: boolean;
       ]}
     >
       <Text style={[styles.name, selected && styles.nameSelected]}>{name}</Text>
-      {selected && <Icon name="check" color={colors.primary} />}
+      {selected && <Icon name="check" color={colors.accent} />}
     </Pressable>
   );
 }
@@ -78,9 +78,9 @@ const styles = StyleSheet.create({
   rowSelected: {
     backgroundColor: colors.primaryTint,
     borderWidth: borderWidth.thick,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   rowPressed: { backgroundColor: colors.primaryTint },
   name: { ...type.body, flex: 1, color: colors.ink },
-  nameSelected: { fontFamily: fontFamily.bold, color: colors.primary },
+  nameSelected: { fontFamily: fontFamily.bold, color: colors.accent },
 });
