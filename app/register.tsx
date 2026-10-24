@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useRef, useState, type ComponentRef } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api } from '../src/api/client';
@@ -14,6 +14,7 @@ import { parseSaId, SA_ID_LENGTH } from '../src/domain/saId';
 import { describeError } from '../src/errorMessage';
 import { tickHaptic } from '../src/haptics';
 import { clearPayoutMethods } from '../src/storage/payoutMethods';
+import { hasRegisteredBefore, markRegisteredBefore } from '../src/storage/returning';
 import { saveUser } from '../src/storage/user';
 import { colors, spacing, type } from '../src/theme';
 
@@ -32,6 +33,21 @@ export default function RegisterScreen() {
   const [consented, setConsented] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Titles the screen honestly: the same form registers a new person
+  // and signs a returning one back in (src/storage/returning.ts).
+  const [returning, setReturning] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void hasRegisteredBefore()
+        .then((before) => !cancelled && setReturning(before))
+        .catch(() => !cancelled && setReturning(false));
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
   const sendingRef = useRef(false);
   const idRef = useRef<ComponentRef<typeof TextInput>>(null);
 
@@ -55,6 +71,9 @@ export default function RegisterScreen() {
       // A different person may have used this phone before: never show them the last one's accounts.
       await clearPayoutMethods();
       await saveUser({ ...user, registeredAt: Date.now() });
+      // Remembered across sign-out, so next time this screen knows to
+      // call itself signing in rather than registering.
+      await markRegisteredBefore();
       tickHaptic();
       // Nothing to come back to: this screen held the ID number and must not stay mounted.
       if (router.canDismiss()) router.dismissAll();
@@ -70,9 +89,11 @@ export default function RegisterScreen() {
     <Screen>
       <View style={styles.heading}>
         <Text accessibilityRole="header" style={styles.title}>
-          {register.title}
+          {returning ? register.signInTitle : register.title}
         </Text>
-        <Text style={styles.body}>{register.helper}</Text>
+        <Text style={styles.body}>
+          {returning ? register.signInHelper : register.helper}
+        </Text>
       </View>
 
       <TextField

@@ -41,6 +41,11 @@ export const common = {
 export const register = {
   title: 'Register',
   helper: 'We need these once, to know it is really you. Use the details on your ID.',
+  /** Same screen, same form: entering the same names and ID number is
+      how a returning person signs back in, so it is titled honestly. */
+  signInTitle: 'Sign in',
+  signInHelper:
+    'Enter the same names and ID number you registered with. Your saved payout methods and deposits are still there.',
   fullNamesLabel: 'Full names',
   fullNamesHelper: 'All your names and surname, as on your ID.',
   idNumberLabel: 'SA ID number',

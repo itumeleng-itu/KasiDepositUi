@@ -22,6 +22,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ACTIVE_DEPOSIT_KEY } from './activeDepositRecord';
 import { HISTORY_INDEX_KEY, historyEntryKey } from './historyRecord';
 import { PAYOUT_METHODS_KEY } from './payoutMethodsRecord';
+import { RETURNING_KEY } from './returning';
 import { signOut } from './session';
 import { USER_KEY } from './userRecord';
 
@@ -43,9 +44,11 @@ beforeEach(() => {
 });
 
 describe('signOut', () => {
-  it('leaves nothing at all behind', async () => {
+  it('leaves nothing identifying behind', async () => {
     await signOut();
-    expect([...mockStore.keys()]).toEqual([]);
+    // The returning marker is deliberately kept; everything that could
+    // say who the person was is gone.
+    expect([...mockStore.keys()].filter((k) => k !== RETURNING_KEY)).toEqual([]);
   });
 
   it('removes the access token, which is what being signed in means', async () => {
@@ -72,6 +75,17 @@ describe('signOut', () => {
       mockStore.delete(k);
     });
     await expect(signOut()).resolves.toBeUndefined();
+    expect(mockStore.get(USER_KEY)).toBeUndefined();
+  });
+
+  it('keeps only the fact that someone once registered here', async () => {
+    // Sign-out forgets WHO you are. This single boolean remembers only
+    // THAT the app has been used on this phone, so the register screen
+    // can call itself "Sign in" next time. It names nobody, so it is
+    // not something sign-out promised to forget.
+    mockStore.set(RETURNING_KEY, '1');
+    await signOut();
+    expect(mockStore.get(RETURNING_KEY)).toBe('1');
     expect(mockStore.get(USER_KEY)).toBeUndefined();
   });
 
