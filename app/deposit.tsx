@@ -60,23 +60,11 @@ export default function DepositScreen() {
 
   return (
     <Screen>
-      {destination ? (
-        <DestinationLine
-          destination={destination}
-          onChange={() => router.push('/payout-methods')}
-        />
-      ) : null}
-
-      <View style={styles.headingRow}>
-        <View style={styles.heading}>
-          <Text accessibilityRole="header" style={styles.title}>
-            {deposit.heading}
-          </Text>
-          <Text style={styles.helper}>{deposit.helper}</Text>
-        </View>
-        {/* An icon, so it stops competing with the two real actions --
-            but it still needs a name of its own, because an icon alone
-            tells a screen reader nothing. */}
+      {/* Top-right corner of the screen, above everything else. An icon
+          rather than a link so it does not compete with the two real
+          actions, but with a name of its own: an icon alone tells a
+          screen reader nothing. */}
+      <View style={styles.topBar}>
         <Pressable
           onPress={() => router.push('/privacy')}
           disabled={loading}
@@ -87,6 +75,20 @@ export default function DepositScreen() {
         >
           <Icon name="shield" color={colors.inkMuted} />
         </Pressable>
+      </View>
+
+      {destination ? (
+        <DestinationLine
+          destination={destination}
+          onChange={() => router.push('/payout-methods')}
+        />
+      ) : null}
+
+      <View style={styles.heading}>
+        <Text accessibilityRole="header" style={styles.title}>
+          {deposit.heading}
+        </Text>
+        <Text style={styles.helper}>{deposit.helper}</Text>
       </View>
 
       <View style={styles.pin}>
@@ -144,16 +146,23 @@ export default function DepositScreen() {
 }
 
 const styles = StyleSheet.create({
-  headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  heading: { flex: 1, gap: spacing.sm },
+  // Its own row at the very top, pushed right. Negative margins pull it
+  // into the screen's corner, past the content gutter, without the
+  // absolute positioning that would make it scroll away.
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: -spacing.sm,
+    marginRight: -spacing.md,
+    marginBottom: -spacing.sm,
+  },
+  heading: { gap: spacing.sm },
   // 48dp so the icon is still a full touch target.
   privacy: {
     width: size.touch,
     height: size.touch,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -spacing.md,
-    marginRight: -spacing.md,
   },
   row: { flexDirection: 'row', gap: spacing.md },
   half: { flex: 1 },
