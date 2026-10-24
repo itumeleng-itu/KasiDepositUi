@@ -6,7 +6,6 @@ import { session } from '../copy';
 import { signOut } from '../storage/session';
 import { loadUser } from '../storage/user';
 import { colors, radius, size, spacing, type } from '../theme';
-import { Icon } from './Icon';
 
 /**
  * Sign out, floating in the bottom-right corner of every screen.
@@ -69,7 +68,6 @@ export function SignOutButton() {
         hitSlop={spacing.sm}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       >
-        <Icon name="cross" color={colors.paper} size={size.iconSmall} />
         <Text style={styles.label}>{session.confirm}</Text>
       </Pressable>
     </View>
@@ -94,7 +92,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     minHeight: size.touch,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.lg + 3,
     borderRadius: radius.device,
     backgroundColor: colors.ink,
   },
