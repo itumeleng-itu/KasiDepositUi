@@ -51,8 +51,6 @@ export const register = {
   idNumberLabel: 'SA ID number',
   idNumberHelper: 'The 13 digits on your green ID book or smart ID card.',
   continue: 'Continue',
-  privacyNote:
-    'Your ID number is sent to us once to verify you with Home Affairs. It is not saved on this phone.',
   fullNamesError: {
     required: 'Enter your full names.',
     one_name: 'Enter your first name and surname.',

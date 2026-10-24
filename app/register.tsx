@@ -170,7 +170,6 @@ export default function RegisterScreen() {
         ) : null}
       </View>
 
-      <Text style={styles.note}>{register.privacyNote}</Text>
     </Screen>
   );
 }
@@ -182,5 +181,4 @@ const styles = StyleSheet.create({
   consent: { gap: spacing.xs },
   actions: { gap: spacing.md },
   unmet: { ...type.label, color: colors.inkMuted, textAlign: 'center' },
-  note: { ...type.body, color: colors.inkMuted },
 });
