@@ -28,7 +28,9 @@ export type IconName =
   | 'shield'
   | 'receipt'
   | 'add'
-  | 'info';
+  | 'info'
+  | 'eye'
+  | 'eyeOff';
 
 const GLYPH: Record<IconName, React.ComponentProps<typeof MaterialIcons>['name']> = {
   check: 'check',
@@ -44,6 +46,8 @@ const GLYPH: Record<IconName, React.ComponentProps<typeof MaterialIcons>['name']
   receipt: 'receipt-long',
   add: 'add',
   info: 'info-outline',
+  eye: 'visibility',
+  eyeOff: 'visibility-off',
 };
 
 interface IconProps {

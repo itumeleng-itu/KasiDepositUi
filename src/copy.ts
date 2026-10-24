@@ -50,6 +50,8 @@ export const register = {
   fullNamesHelper: 'All your names and surname, as on your ID.',
   idNumberLabel: 'SA ID number',
   idNumberHelper: 'The 13 digits on your green ID book or smart ID card.',
+  showIdNumber: 'Show ID number',
+  hideIdNumber: 'Hide ID number',
   continue: 'Continue',
   fullNamesError: {
     required: 'Enter your full names.',

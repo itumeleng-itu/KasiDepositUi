@@ -1,10 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api } from '../src/api/client';
 import { Button } from '../src/components/Button';
 import { Checkbox } from '../src/components/Checkbox';
+import { Icon } from '../src/components/Icon';
 import { InlineError } from '../src/components/InlineError';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
@@ -16,7 +17,7 @@ import { tickHaptic } from '../src/haptics';
 import { clearPayoutMethods } from '../src/storage/payoutMethods';
 import { hasRegisteredBefore, markRegisteredBefore } from '../src/storage/returning';
 import { saveUser } from '../src/storage/user';
-import { colors, spacing, type } from '../src/theme';
+import { colors, size, spacing, type } from '../src/theme';
 
 type Field = 'fullNames' | 'idNumber';
 
@@ -28,6 +29,7 @@ type Field = 'fullNames' | 'idNumber';
 export default function RegisterScreen() {
   const [fullNames, setFullNames] = useState('');
   const [idNumber, setIdNumber] = useState('');
+  const [idVisible, setIdVisible] = useState(false);
   const [touched, setTouched] = useState<Record<Field, boolean>>({ fullNames: false, idNumber: false });
   // POPIA: nothing is sent until the user has agreed to the privacy notice.
   const [consented, setConsented] = useState(false);
@@ -121,6 +123,23 @@ export default function RegisterScreen() {
         label={register.idNumberLabel}
         helper={register.idNumberHelper}
         value={idNumber}
+        secureTextEntry={!idVisible}
+        rightAccessory={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={idVisible ? register.hideIdNumber : register.showIdNumber}
+            onPress={() => setIdVisible((visible) => !visible)}
+            disabled={sending}
+            hitSlop={spacing.xs}
+            style={styles.visibilityToggle}
+          >
+            <Icon
+              name={idVisible ? 'eyeOff' : 'eye'}
+              color={colors.accent}
+              size={size.icon}
+            />
+          </Pressable>
+        }
         onChangeText={(text) => {
           setIdNumber(text);
           setError(null);
@@ -181,4 +200,10 @@ const styles = StyleSheet.create({
   consent: { gap: spacing.xs },
   actions: { gap: spacing.md },
   unmet: { ...type.label, color: colors.inkMuted, textAlign: 'center' },
+  visibilityToggle: {
+    minWidth: size.touch,
+    minHeight: size.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
