@@ -8,6 +8,7 @@ import { InlineError } from '../../src/components/InlineError';
 import { PayoutMethodCard } from '../../src/components/PayoutMethodCard';
 import { Screen } from '../../src/components/Screen';
 import { common, payout } from '../../src/copy';
+import { payoutOptions } from '../../src/payoutOptions';
 import { describeDestination } from '../../src/domain/destination';
 import { tickHaptic } from '../../src/haptics';
 import {
@@ -30,6 +31,8 @@ export default function PayoutMethodsScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
+
+  const options = payoutOptions(methods ?? []);
 
   // Runs again when we come back from adding one.
   useFocusEffect(
@@ -118,19 +121,34 @@ export default function PayoutMethodsScreen() {
         </View>
       ) : null}
 
+      {/* What is left to add. A PayShap number is offered only until
+          there is one: your number is your number, so a second is
+          almost always a mistake rather than an intent. The server
+          permits more, so this is a choice made here, not a rule.
+
+          Past the server's cap neither is offered, because the add
+          would be refused and the refusal would read as a fault. */}
       <View style={styles.actions}>
-        <Button
-          variant="secondary"
-          label={payout.addPayShap}
-          onPress={() => router.push('/payout-methods/add-payshap')}
-          disabled={busy}
-        />
-        <Button
-          variant="secondary"
-          label={payout.addAccount}
-          onPress={() => router.push('/payout-methods/add-account')}
-          disabled={busy}
-        />
+        {options.full ? (
+          <Text style={styles.note}>{payout.addFull}</Text>
+        ) : (
+          <>
+            {options.payShap ? (
+              <Button
+                variant="secondary"
+                label={payout.addPayShap}
+                onPress={() => router.push('/payout-methods/add-payshap')}
+                disabled={busy}
+              />
+            ) : null}
+            <Button
+              variant="secondary"
+              label={payout.addAccount}
+              onPress={() => router.push('/payout-methods/add-account')}
+              disabled={busy}
+            />
+          </>
+        )}
       </View>
     </Screen>
   );

@@ -166,6 +166,8 @@ export const payout = {
   removeBody: (oneLine: string) => `You won't be able to pay into ${oneLine} until you add it again.`,
   addPayShap: 'Use a PayShap number',
   addAccount: 'Add a bank account',
+  /** Shown instead of the add buttons once the server's cap is reached. */
+  addFull: "You've saved as many places as we can keep. Remove one to add another.",
   offline: "No connection. Showing what's saved on this phone.",
   changeFailed: "We couldn't change that. Check your connection and try again.",
 
