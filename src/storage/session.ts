@@ -1,7 +1,8 @@
 import { clearActiveDeposit } from './activeDeposit';
 import { clearHistory } from './history';
 import { clearPayoutMethods } from './payoutMethods';
-import { clearUser } from './user';
+import { markRegisteredBefore } from './returning';
+import { clearUser, loadUser } from './user';
 
 /**
  * Forget this phone.
@@ -23,6 +24,14 @@ import { clearUser } from './user';
  * that still holds a token is the worst of the three outcomes.
  */
 export async function signOut(): Promise<void> {
+  // Before anything is cleared: this is the last moment we can know
+  // somebody was signed in here. Registration also marks it, but a
+  // phone registered before that existed has no marker, and without
+  // this it would be greeted with "Register" forever.
+  if (await loadUser().catch(() => null)) {
+    await markRegisteredBefore();
+  }
+
   await Promise.all([
     clearUser().catch(() => {}),
     clearPayoutMethods().catch(() => {}),

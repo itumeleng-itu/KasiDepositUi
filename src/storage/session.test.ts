@@ -24,13 +24,23 @@ import { HISTORY_INDEX_KEY, historyEntryKey } from './historyRecord';
 import { PAYOUT_METHODS_KEY } from './payoutMethodsRecord';
 import { RETURNING_KEY } from './returning';
 import { signOut } from './session';
+import { saveUser } from './user';
 import { USER_KEY } from './userRecord';
 
 const DEPOSIT_IDS = ['d-1', 'd-2'];
 
-function seedASignedInPhone() {
+async function seedASignedInPhone() {
   mockStore.clear();
-  mockStore.set(USER_KEY, '{"accessToken":"secret-token"}');
+  // Seeded through saveUser rather than written straight into the
+  // store: loadUser keeps a module-level cache, and a test that writes
+  // the key directly is invisible to a cache an earlier test already
+  // set. Going through the real API keeps the two in step.
+  await saveUser({
+    userId: 'u-1',
+    accessToken: 'secret-token',
+    fullNames: 'Thabo Mokoena',
+    registeredAt: 1_800_000_000_000,
+  });
   mockStore.set(PAYOUT_METHODS_KEY, '[{"id":"pm-1"}]');
   mockStore.set(ACTIVE_DEPOSIT_KEY, '{"depositId":"d-1"}');
   // The index is a plain array of ids (serialiseHistoryIndex).
@@ -38,9 +48,9 @@ function seedASignedInPhone() {
   for (const id of DEPOSIT_IDS) mockStore.set(historyEntryKey(id), `{"depositId":"${id}"}`);
 }
 
-beforeEach(() => {
-  seedASignedInPhone();
+beforeEach(async () => {
   jest.clearAllMocks();
+  await seedASignedInPhone();
 });
 
 describe('signOut', () => {
@@ -87,6 +97,27 @@ describe('signOut', () => {
     await signOut();
     expect(mockStore.get(RETURNING_KEY)).toBe('1');
     expect(mockStore.get(USER_KEY)).toBeUndefined();
+  });
+
+  it('marks a phone that was signed in before the marker existed', async () => {
+    // Anyone who registered before this feature shipped has a user but
+    // no marker. Signing out is the last moment we can tell they were
+    // here, so without this they would be greeted with "Register"
+    // forever, however many times they had used the app.
+    mockStore.delete(RETURNING_KEY);
+    await signOut();
+    expect(mockStore.get(RETURNING_KEY)).toBe('1');
+  });
+
+  it('does not mark a phone nobody ever signed in on', async () => {
+    // A stranger opening the app and signing out of nothing must not
+    // be told "Sign in" afterwards.
+    // signOut first to empty both the store and loadUser's cache, then
+    // sign out again on a phone that is genuinely blank.
+    await signOut();
+    mockStore.clear();
+    await signOut();
+    expect(mockStore.get(RETURNING_KEY)).toBeUndefined();
   });
 
   it('is safe on a phone that was never signed in', async () => {

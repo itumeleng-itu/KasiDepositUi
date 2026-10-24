@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { loadActiveDeposit } from '../src/storage/activeDeposit';
 import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
+import { markRegisteredBefore } from '../src/storage/returning';
 import { loadUser } from '../src/storage/user';
 import { colors } from '../src/theme';
 
@@ -23,6 +24,9 @@ export default function Launcher() {
         if (active) {
           target = { pathname: '/status/[id]', params: { id: active.depositId } };
         } else if (await loadUser()) {
+          // Catches anyone registered before the marker existed: if a
+          // user is on this phone, somebody has been here.
+          void markRegisteredBefore();
           target = (await loadDefaultPayoutMethod())
             ? '/deposit'
             : { pathname: '/payout-methods/add', params: { next: 'deposit' } };
