@@ -70,16 +70,20 @@ export const spacing = {
 } as const;
 
 /**
- * Buttons are barely rounded — enough to take the edge off, not enough
- * to read as a pill. Chips stay fully round because a status badge is
- * meant to look like a badge; hero cards and panels keep their softer
- * radii.
+ * Buttons and chips are pills; hero cards are as round as the buttons; inputs, rows and panels
+ * share one slightly softer radius.
  */
 export const radius = {
-  /** The one on buttons. Small on purpose: a few pixels, not a corner. */
-  button: 8,
+  pill: 28,
   /** Hero cards and the scan panel. */
   card: 28,
+  /**
+   * For the floating sign-out, which sits in the phone's own bottom
+   * corner. Phone corners are far rounder than any of our controls, and
+   * a 28dp button nested inside a ~45dp device corner reads as slightly
+   * wrong — the two curves fight. This follows the device instead.
+   */
+  device: 24,
   control: 20,
   chip: 999,
 } as const;

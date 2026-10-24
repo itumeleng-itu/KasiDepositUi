@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minHeight: size.touch,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.button,
+    borderRadius: radius.device,
     backgroundColor: colors.ink,
   },
   pressed: { opacity: 0.85 },
