@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   filled: {
     minHeight: size.button,
     alignSelf: 'stretch',
-    borderRadius: radius.pill,
+    borderRadius: radius.button,
   },
   textVariant: { alignSelf: 'center' },
   alignStart: { alignSelf: 'flex-start', paddingHorizontal: 0 },

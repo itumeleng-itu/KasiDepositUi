@@ -70,11 +70,14 @@ export const spacing = {
 } as const;
 
 /**
- * Buttons and chips are pills; hero cards are as round as the buttons; inputs, rows and panels
- * share one slightly softer radius.
+ * Buttons are barely rounded — enough to take the edge off, not enough
+ * to read as a pill. Chips stay fully round because a status badge is
+ * meant to look like a badge; hero cards and panels keep their softer
+ * radii.
  */
 export const radius = {
-  pill: 28,
+  /** The one on buttons. Small on purpose: a few pixels, not a corner. */
+  button: 8,
   /** Hero cards and the scan panel. */
   card: 28,
   control: 20,
