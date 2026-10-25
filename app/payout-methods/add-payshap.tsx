@@ -3,18 +3,21 @@ import { useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { isApiError } from '../../src/api/errors';
+import type { PayoutMethod } from '../../src/api/types';
 import { BankList } from '../../src/components/BankList';
 import { Button } from '../../src/components/Button';
+import { Icon } from '../../src/components/Icon';
 import { InlineError } from '../../src/components/InlineError';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { common, payout } from '../../src/copy';
+import { describeDestination } from '../../src/domain/destination';
 import { parseShapId, withBankSuffix } from '../../src/domain/shapId';
 import { describeError } from '../../src/errorMessage';
 import { tickHaptic } from '../../src/haptics';
 import { finishAdding } from '../../src/payoutNavigation';
 import { addPayoutMethod } from '../../src/storage/payoutMethods';
-import { colors, spacing, type } from '../../src/theme';
+import { borderWidth, colors, radius, size, spacing, type } from '../../src/theme';
 
 /**
  * Use a PayShap number the user already set up in their banking app (the app cannot set anyone
@@ -22,6 +25,10 @@ import { colors, spacing, type } from '../../src/theme';
  * only saves it if it is registered there in this user's own name. If it isn't set up for
  * PayShap, or is someone else's, the user is offered a bank account instead — never a dead end.
  * A number registered at more than one bank shows the bank picker, as before.
+ *
+ * When it checks out, the screen says so — "Found on PayShap", with the name and bank the
+ * directory holds for the number — and waits for the user to continue, so they see whose
+ * account the money will go to before they ever enter a PIN.
  */
 export default function AddPayShapScreen() {
   const { next } = useLocalSearchParams<{ next?: string }>();
@@ -34,6 +41,8 @@ export default function AddPayShapScreen() {
   // The number a shapid_ambiguous came back for, so a bank choice attaches to what was typed.
   const [ambiguousBase, setAmbiguousBase] = useState<string | null>(null);
   const addingRef = useRef(false);
+  // The saved method once the directory confirmed it: shown until the user continues.
+  const [found, setFound] = useState<PayoutMethod | null>(null);
 
   const parsed = parseShapId(rawInput);
   const fieldError = touched && !parsed.ok ? payout.parseError[parsed.reason] : null;
@@ -47,9 +56,11 @@ export default function AddPayShapScreen() {
     setOfferAccount(false);
     Keyboard.dismiss();
     try {
-      await addPayoutMethod({ kind: 'shapId', shapId }, true);
+      const method = await addPayoutMethod({ kind: 'shapId', shapId }, true);
       tickHaptic();
-      finishAdding(next);
+      setFound(method);
+      addingRef.current = false;
+      setAdding(false);
     } catch (caught) {
       const reason = isApiError(caught) && caught.kind === 'business' ? caught.reason : undefined;
       setError(describeError(caught, { moneyMayHaveMoved: false }));
@@ -68,6 +79,38 @@ export default function AddPayShapScreen() {
   function onAdd() {
     setTouched(true);
     if (parsed.ok) attempt(parsed.shapId);
+  }
+
+  if (found) {
+    const { primary, oneLine, spokenOneLine } = describeDestination(found);
+    return (
+      <Screen>
+        <View style={styles.heading}>
+          <View style={styles.foundTitleRow}>
+            <Icon name="check" color={colors.success} size={size.icon} />
+            <Text accessibilityRole="header" style={styles.title}>
+              {payout.foundTitle}
+            </Text>
+          </View>
+          <Text style={styles.body}>{payout.foundBody}</Text>
+        </View>
+        <View
+          style={styles.foundCard}
+          accessible
+          accessibilityLabel={`${payout.kind.shapId}, ${primary}, ${spokenOneLine}`}
+        >
+          <Text style={styles.foundKind}>{payout.kind.shapId}</Text>
+          <Text style={styles.foundName}>{primary}</Text>
+          <Text style={styles.body}>{oneLine}</Text>
+        </View>
+        <View style={styles.actions}>
+          <Button
+            label={next === 'deposit' ? payout.continueToDeposit : payout.done}
+            onPress={() => finishAdding(next)}
+          />
+        </View>
+      </Screen>
+    );
   }
 
   return (
@@ -150,4 +193,15 @@ const styles = StyleSheet.create({
   body: { ...type.body, color: colors.inkMuted },
   actions: { gap: spacing.md },
   unmet: { ...type.label, color: colors.inkMuted, textAlign: 'center' },
+  foundTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  foundCard: {
+    gap: spacing.xs,
+    padding: spacing.lg,
+    borderRadius: radius.card,
+    borderWidth: borderWidth.thick,
+    borderColor: colors.success,
+    backgroundColor: colors.successTint,
+  },
+  foundKind: { ...type.label, color: colors.inkMuted },
+  foundName: { ...type.headline, color: colors.ink },
 });

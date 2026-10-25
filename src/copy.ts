@@ -192,6 +192,11 @@ export const payout = {
   accountLabel: 'Account number',
   add: 'Add',
   checkingPayShap: 'Checking with PayShap',
+  /** After a PayShap number checks out: the directory's answer, shown before moving on. */
+  foundTitle: 'Found on PayShap',
+  foundBody: 'This number is registered on PayShap in your name. Your deposits will be paid here.',
+  continueToDeposit: 'Continue to deposit',
+  done: 'Done',
   checkingAccount: 'Checking with your bank',
   useAccountInstead: 'Use a bank account instead',
   usePayShapInstead: 'Use PayShap instead',
