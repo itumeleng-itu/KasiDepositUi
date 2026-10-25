@@ -74,6 +74,10 @@ export const register = {
   consent: 'I have read how KasiDeposit uses my information, and I agree to it.',
   readPrivacy: 'Read how we use your information',
   registering: 'Registering',
+  signingIn: 'Signing in',
+  /** Switches the wording only; the form and what it sends are the same. */
+  switchToRegister: 'New here? Register',
+  switchToSignIn: 'Been here before? Sign in',
 } as const;
 
 /**

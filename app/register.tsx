@@ -37,7 +37,11 @@ export default function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
   // Titles the screen honestly: the same form registers a new person
   // and signs a returning one back in (src/storage/returning.ts).
-  const [returning, setReturning] = useState(false);
+  const [rememberedReturning, setReturning] = useState(false);
+  // What the person chose with the switch under the form, if anything. It
+  // wins over the marker, which is re-read on every focus (e.g. back from privacy).
+  const [chosenReturning, setChosenReturning] = useState<boolean | null>(null);
+  const returning = chosenReturning ?? rememberedReturning;
 
   useFocusEffect(
     useCallback(() => {
@@ -177,7 +181,7 @@ export default function RegisterScreen() {
       <View style={styles.actions}>
         <Button
           label={register.continue}
-          loadingLabel={register.registering}
+          loadingLabel={returning ? register.signingIn : register.registering}
           onPress={onContinue}
           disabled={!valid}
           loading={sending}
@@ -187,6 +191,15 @@ export default function RegisterScreen() {
             {detailsValid ? register.unmetConsent : register.unmet}
           </Text>
         ) : null}
+        {/* The phone's marker picks the starting wording; this lets the person
+            correct it (a new person on a used phone, or a demo). Wording only:
+            the backend decides new or returning from the names and ID number. */}
+        <Button
+          variant="text"
+          label={returning ? register.switchToRegister : register.switchToSignIn}
+          onPress={() => setChosenReturning(!returning)}
+          disabled={sending}
+        />
       </View>
 
     </Screen>
