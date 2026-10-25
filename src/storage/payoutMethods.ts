@@ -10,17 +10,28 @@ import {
   serialisePayoutMethods,
 } from './payoutMethodsRecord';
 
+/**
+ * Held in memory once read or refreshed, like the session (storage/user.ts). Without it, a
+ * phone whose secure storage refuses writes (some emulators, some locked-down devices) got the
+ * server's list on one screen and an empty phone copy on the next: "How do you want to get
+ * paid?" saw a saved method and went to the PIN screen, which saw none and sent it straight
+ * back, forever. `undefined` means "not read yet".
+ */
+let cached: PayoutMethod[] | undefined;
+
 /** The phone's copy. Never rejects: trouble reading is an empty list. */
 export async function loadPayoutMethods(): Promise<PayoutMethod[]> {
+  if (cached !== undefined) return cached;
   for (const key of LEGACY_DESTINATION_KEYS) {
     SecureStore.deleteItemAsync(key).catch(() => {});
   }
   try {
     const raw = await SecureStore.getItemAsync(PAYOUT_METHODS_KEY);
-    return raw === null ? [] : parsePayoutMethods(raw);
+    cached = raw === null ? [] : parsePayoutMethods(raw);
   } catch {
     return [];
   }
+  return cached;
 }
 
 /** Where "Paying into" points, or null if the user has not added anywhere yet. */
@@ -29,6 +40,7 @@ export async function loadDefaultPayoutMethod(): Promise<PayoutMethod | null> {
 }
 
 async function keep(methods: PayoutMethod[]): Promise<PayoutMethod[]> {
+  cached = methods;
   try {
     await SecureStore.setItemAsync(PAYOUT_METHODS_KEY, serialisePayoutMethods(methods));
   } catch {
@@ -69,6 +81,7 @@ export async function removePayoutMethod(id: string): Promise<PayoutMethod[]> {
 
 /** Signing out on this phone: the next user must not see these. Never rejects. */
 export async function clearPayoutMethods(): Promise<void> {
+  cached = [];
   try {
     await SecureStore.deleteItemAsync(PAYOUT_METHODS_KEY);
   } catch {

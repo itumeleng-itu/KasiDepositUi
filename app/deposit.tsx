@@ -10,7 +10,8 @@ import { Icon } from '../src/components/Icon';
 import { Screen } from '../src/components/Screen';
 import { deposit } from '../src/copy';
 import { PIN_GROUPING, PIN_LENGTH } from '../src/domain/pin';
-import { loadDefaultPayoutMethod } from '../src/storage/payoutMethods';
+import { loadDefaultPayoutMethod, refreshPayoutMethods } from '../src/storage/payoutMethods';
+import { defaultMethod } from '../src/storage/payoutMethodsRecord';
 import { colors, PIN_MAX_FONT_SCALE, size, spacing, type } from '../src/theme';
 import { attemptVoucherLookup } from '../src/voucherLookup';
 
@@ -30,11 +31,15 @@ export default function DepositScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      loadDefaultPayoutMethod().then((saved) => {
+      (async () => {
+        let saved = await loadDefaultPayoutMethod();
+        // Nothing on the phone: ask the server before sending them to add one, so a phone that
+        // could not save its copy is not bounced away from methods the server already has.
+        if (!saved) saved = defaultMethod(await refreshPayoutMethods().catch(() => []));
         if (cancelled) return;
         if (saved) setDestination(saved);
         else router.replace({ pathname: '/payout-methods/add', params: { next: 'deposit' } });
-      });
+      })();
       return () => {
         cancelled = true;
       };
