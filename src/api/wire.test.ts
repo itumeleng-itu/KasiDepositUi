@@ -232,6 +232,13 @@ describe('401: the phone is no longer registered', () => {
     });
   });
 
+  it.each(['shapid_already_linked', 'account_already_linked'])(
+    'reads a payout method another user already saved as a business refusal: %s',
+    (reason) => {
+      expect(interpretErrorResponse(409, { reason })).toMatchObject({ kind: 'business', reason });
+    },
+  );
+
   it('reads registration reasons from the body', () => {
     expect(interpretErrorResponse(409, { reason: 'id_number_already_registered' })).toMatchObject({
       kind: 'business',

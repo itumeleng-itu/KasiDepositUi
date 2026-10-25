@@ -122,9 +122,11 @@ export type RegistrationFailure =
   | 'registration_unavailable'
   | 'not_registered'
   | 'shapid_name_mismatch'
+  | 'shapid_already_linked'
   | 'invalid_account'
   | 'account_not_found'
   | 'account_holder_mismatch'
+  | 'account_already_linked'
   | 'accounts_unavailable'
   | 'payout_method_limit'
   | 'payout_method_not_found'
@@ -139,9 +141,11 @@ export const REGISTRATION_FAILURE_REASONS: Record<RegistrationFailure, true> = {
   registration_unavailable: true,
   not_registered: true,
   shapid_name_mismatch: true,
+  shapid_already_linked: true,
   invalid_account: true,
   account_not_found: true,
   account_holder_mismatch: true,
+  account_already_linked: true,
   accounts_unavailable: true,
   payout_method_limit: true,
   payout_method_not_found: true,

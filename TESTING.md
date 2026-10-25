@@ -70,6 +70,7 @@ just works. Failures come only from reserved test numbers (the same on the fake 
 | `082 000 0008` (suspended) | *This account can't receive PayShap payments right now...* and **Use a bank account instead**. |
 | `082 000 0007` (at several banks) | *...registered at more than one bank...* and the bank list; tap one to add it there. |
 | `082 000 0005` (someone else's) | *This PayShap number is registered to someone else...* and **Use a bank account instead**. |
+| A number another user has already saved (real backend only, not the fake) | *This PayShap number is already linked to another KasiDeposit account...* and **Use a bank account instead**. The same for a bank account: *This account is already linked...* and the PayShap offer. |
 | `082 000 0006` (fake API only) | *No connection. Check your data and try again.* |
 
 On the real API a number listed on the till page's *PayShap numbers (demo)* always resolves to

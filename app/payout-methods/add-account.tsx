@@ -136,7 +136,11 @@ export default function AddAccountScreen() {
     } catch (caught) {
       const reason = isApiError(caught) && caught.kind === 'business' ? caught.reason : undefined;
       setError(describeError(caught, { moneyMayHaveMoved: false }));
-      setOfferPayShap(reason === 'account_holder_mismatch' || reason === 'accounts_unavailable');
+      setOfferPayShap(
+        reason === 'account_holder_mismatch' ||
+          reason === 'account_already_linked' ||
+          reason === 'accounts_unavailable',
+      );
       addingRef.current = false;
       setAdding(false);
     }

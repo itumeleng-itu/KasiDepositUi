@@ -57,7 +57,8 @@ export default function AddPayShapScreen() {
       setOfferAccount(
         reason === 'shapid_not_found' ||
           reason === 'shapid_suspended' ||
-          reason === 'shapid_name_mismatch',
+          reason === 'shapid_name_mismatch' ||
+          reason === 'shapid_already_linked',
       );
       addingRef.current = false;
       setAdding(false);

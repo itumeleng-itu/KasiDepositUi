@@ -471,6 +471,9 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
   invalid_account: "That doesn't look like a valid account number. Check it in your banking app.",
   account_not_found: "We couldn't find that account at that bank. Check the bank and the account number.",
   account_holder_mismatch: 'This account is not in your name. Use an account in your own name.',
+  // One owner each (KasiDepositApi migration 0008): it pays into one person's account.
+  account_already_linked:
+    'This account is already linked to another KasiDeposit account. Use another account, or PayShap.',
   accounts_unavailable: "We can't add bank accounts right now. Try again later, or use PayShap.",
   payout_method_limit: 'You can save up to 5. Remove one to add another.',
   payout_method_not_found: 'That one was already removed. Choose another.',
@@ -479,6 +482,8 @@ const FAILURE_MESSAGES: Record<FailureReason, string> = {
     'This ID number is already registered with different details. Check your details, or contact support.',
   shapid_name_mismatch:
     'This PayShap number is registered to someone else. Use a number in your own name, or a bank account.',
+  shapid_already_linked:
+    'This PayShap number is already linked to another KasiDeposit account. Use another number, or a bank account.',
   not_registered: 'You need to register again on this phone to continue.',
   // The confirm screen shows `riskCheck` for this one; the message is only a fallback.
   confirmation_required: 'Check this deposit is your own before you continue.',
